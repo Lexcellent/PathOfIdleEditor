@@ -40,6 +40,7 @@ public partial class MainWindow : Window
             _equipmentView = CollectionViewSource.GetDefaultView(_snapshot.EquipmentTemplates);
             EquipmentTemplateCombo.ItemsSource = _equipmentView;
             EquipmentLevelCombo.ItemsSource = _snapshot.EquipmentLevels;
+            BlessingLevelCombo.ItemsSource = _snapshot.BlessingLevels;
             HeroCombo.ItemsSource = _snapshot.Heroes;
             EquipmentTemplateCombo.SelectedIndex = _snapshot.EquipmentTemplates.Count > 0 ? 0 : -1;
             EquipmentLevelCombo.SelectedIndex = _snapshot.EquipmentLevels.Count > 0 ? 0 : -1;
@@ -267,6 +268,7 @@ public partial class MainWindow : Window
         DexterityText.Text = hero.Dexterity.ToString(CultureInfo.InvariantCulture);
         IntelligenceText.Text = hero.Intelligence.ToString(CultureInfo.InvariantCulture);
         RemainingPointsText.Text = hero.RemainingSkillPoints.ToString(CultureInfo.InvariantCulture);
+        BlessingLevelCombo.SelectedItem = hero.BlessingLevel;
         TalentsGrid.ItemsSource = hero.TalentSlots;
         SetStatus($"已选择“{hero.Name}”；角色合法等级为 1-{hero.MaximumLevel}。", true);
     }
@@ -307,6 +309,9 @@ public partial class MainWindow : Window
             }
             hero.Name = HeroNameText.Text;
             hero.Level = level;
+            hero.BlessingLevel = BlessingLevelCombo.SelectedItem is int blessingLevel
+                ? blessingLevel
+                : throw new InvalidOperationException("请选择合法赐福等级。");
             hero.Strength = ParseFloat(StrengthText.Text, "力量");
             hero.Dexterity = ParseFloat(DexterityText.Text, "敏捷");
             hero.Intelligence = ParseFloat(IntelligenceText.Text, "智力");

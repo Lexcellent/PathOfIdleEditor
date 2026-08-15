@@ -21,6 +21,12 @@ internal static class GameEditorService
             snapshot.EquipmentLevels.Add(pair.Key);
         snapshot.EquipmentLevels.Sort();
 
+        // 0 表示未赐福，其余合法等级完全来自当前游戏的赐福等级表。
+        snapshot.BlessingLevels.Add(0);
+        foreach (var pair in THeroBlessLevel.create())
+            if (!snapshot.BlessingLevels.Contains(pair.Key)) snapshot.BlessingLevels.Add(pair.Key);
+        snapshot.BlessingLevels.Sort();
+
         var partTable = TEquipPart.create();
         var templates = TEquip.create();
 
@@ -184,6 +190,9 @@ internal static class GameEditorService
         var maxHeroLevel = Math.Max(1, lord.GetMaxHeroLevel());
         if (edit.Level < 1 || edit.Level > maxHeroLevel)
             throw new InvalidOperationException($"当前游戏规则允许的角色等级为 1-{maxHeroLevel}。");
+        var blessingTable = THeroBlessLevel.create();
+        if (edit.BlessingLevel != 0 && !blessingTable.ContainsKey(edit.BlessingLevel))
+            throw new InvalidOperationException($"赐福等级 {edit.BlessingLevel} 不存在于当前游戏规则表中。");
 
         // 提交时重新构建技能树规则，不能信任桌面端连接时缓存的等级上限和候选项。
         var currentSlots = BuildTalentSlots(hero);
@@ -202,6 +211,7 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"“{selected.Name}”的合法等级为 {rule.MinimumLevel}-{selected.MaximumLevel}。");
         }
 
+        var targetBlessingLevel = edit.BlessingLevel;
         save.level = edit.Level;
         save.exp = 0;
         save.name = edit.Name.Trim();
@@ -222,6 +232,17 @@ internal static class GameEditorService
 
         // 重新初始化运行时角色，使属性派生值、装备效果和技能对象与存档字段保持一致。
         hero.Init();
+
+        // 赐福通过游戏原生升降流程修改，使赐福属性和赐福技能点同步更新。
+        if (targetBlessingLevel < save.blessLevel && !hero.ClearAllBlessLevel())
+            throw new InvalidOperationException("游戏拒绝清除当前角色的赐福等级。");
+        while (save.blessLevel < targetBlessingLevel)
+        {
+            var previousLevel = save.blessLevel;
+            hero.BlessLevelUp();
+            if (save.blessLevel <= previousLevel)
+                throw new InvalidOperationException($"游戏无法把赐福等级提升到 {targetBlessingLevel}。");
+        }
         save.talentRemainPoint = Math.Max(0, edit.RemainingSkillPoints);
         hero.SetName(save.name);
         Game.eventMgr?.sendEvent(EEvent.talentChange, hero);
@@ -236,6 +257,7 @@ internal static class GameEditorService
         Name = GetHeroName(hero),
         Level = hero.saveHeroData.level,
         MaximumLevel = Math.Max(1, maximumLevel),
+        BlessingLevel = hero.saveHeroData.blessLevel,
         Strength = ReadAttribute(hero.saveHeroData, EAttrType.STR),
         Dexterity = ReadAttribute(hero.saveHeroData, EAttrType.DEX),
         Intelligence = ReadAttribute(hero.saveHeroData, EAttrType.INT),

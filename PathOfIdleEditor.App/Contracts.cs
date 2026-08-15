@@ -23,6 +23,7 @@ public sealed class EditorSnapshot
     public List<EquipmentTemplate> EquipmentTemplates { get; set; } = new();
     public List<RuleOption> EquipmentQualities { get; set; } = new();
     public List<int> EquipmentLevels { get; set; } = new();
+    public List<int> BlessingLevels { get; set; } = new();
     public List<HeroEdit> Heroes { get; set; } = new();
 }
 
@@ -94,6 +95,7 @@ public sealed class HeroEdit
     public string Name { get; set; } = "";
     public int Level { get; set; }
     public int MaximumLevel { get; set; }
+    public int BlessingLevel { get; set; }
     public float Strength { get; set; }
     public float Dexterity { get; set; }
     public float Intelligence { get; set; }
