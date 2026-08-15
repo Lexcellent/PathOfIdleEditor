@@ -62,27 +62,11 @@ internal static class GameEditorService
             ?? throw new InvalidOperationException("游戏原生装备生成器拒绝了当前组合。");
         var rules = new EquipmentRules
         {
-            MaximumAffixCount = Math.Max(Math.Max(0, preview.GetAffixCount(edit.Quality)), preview.affixList?.Count ?? 0),
+            MaximumAffixCount = preview.affixList?.Count ?? 0,
             MaximumAffixLevel = Math.Max(1, levelData.affixMaxLevel)
         };
-
-        // 词条候选直接来自游戏按装备、部位、品级和等级筛选后的原生池。
-        var pool = EquipSys.GetEquipAffixPool(template.id, template.part, edit.Quality, edit.Level);
         var affixTable = TAffix.create();
-        for (var i = 0; pool != null && i < pool.Count; i++)
-        {
-            var info = pool[i];
-            if (!affixTable.ContainsKey(info.id))
-                continue;
-            var affix = affixTable[info.id];
-            rules.AllowedAffixes.Add(new AffixOption
-            {
-                Id = affix.id,
-                Quality = affix.quality,
-                Name = GetAffixName(affix)
-            });
-        }
-        rules.AllowedAffixes.Sort((a, b) => a.Id.CompareTo(b.Id));
+        var affixQualityTable = TAffixQuality.create();
 
         if (preview.affixList != null)
         {
@@ -91,23 +75,44 @@ internal static class GameEditorService
                 var affix = preview.affixList[i];
                 if (affix == null)
                     continue;
+
+                // GetEquipAffixPool 的 quality 参数表示词条档位，而不是装备品级。
+                // 直接统计原生预览结果，可以兼容同时拥有精良、稀有等多档词条的装备。
+                rules.AffixQualityLimits.TryGetValue(affix.quality, out var qualityCount);
+                rules.AffixQualityLimits[affix.quality] = qualityCount + 1;
+                var qualityName = affixQualityTable.ContainsKey(affix.quality)
+                    ? affixQualityTable[affix.quality].name
+                    : $"词条档位 {affix.quality}";
+                rules.AffixQualityNames[affix.quality] = qualityName;
                 rules.GeneratedAffixes.Add(new AffixEdit
                 {
                     Id = affix.id,
                     Quality = affix.quality,
+                    QualityName = qualityName,
                     Name = affixTable.ContainsKey(affix.id) ? GetAffixName(affixTable[affix.id]) : $"词条 {affix.id}",
                     Level = Math.Clamp(affix.level, 1, rules.MaximumAffixLevel)
                 });
-                if (!ContainsAffix(rules.AllowedAffixes, affix.id))
-                {
-                    rules.AllowedAffixes.Add(new AffixOption
-                    {
-                        Id = affix.id,
-                        Quality = affix.quality,
-                        Name = affixTable.ContainsKey(affix.id) ? GetAffixName(affixTable[affix.id]) : $"词条 {affix.id}"
-                    });
-                }
             }
+        }
+
+        // 按预览装备实际出现的每个词条档位分别读取原生池，再合并成编辑器候选项。
+        var poolById = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
+        foreach (var pair in poolById)
+        {
+            if (!affixTable.ContainsKey(pair.Key))
+                continue;
+            var affix = affixTable[pair.Key];
+            var qualityName = affixQualityTable.ContainsKey(affix.quality)
+                ? affixQualityTable[affix.quality].name
+                : $"词条档位 {affix.quality}";
+            rules.AffixQualityNames[affix.quality] = qualityName;
+            rules.AllowedAffixes.Add(new AffixOption
+            {
+                Id = affix.id,
+                Quality = affix.quality,
+                QualityName = qualityName,
+                Name = GetAffixName(affix)
+            });
         }
         rules.AllowedAffixes.Sort((a, b) => a.Id.CompareTo(b.Id));
         return rules;
@@ -121,12 +126,13 @@ internal static class GameEditorService
         if (edit.Affixes.Count > rules.MaximumAffixCount)
             throw new InvalidOperationException($"当前品级最多允许 {rules.MaximumAffixCount} 条词条。");
 
-        var pool = EquipSys.GetEquipAffixPool(template.id, template.part, edit.Quality, edit.Level);
-        var poolById = new Dictionary<int, SAffixInfo>();
-        for (var i = 0; pool != null && i < pool.Count; i++)
-            poolById[pool[i].id] = pool[i];
+        var poolById = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
         var affixTable = TAffix.create();
         var seen = new HashSet<int>();
+        var requestedQualityCounts = new Dictionary<int, int>();
+        var nativeSpecialAffixIds = new HashSet<int>();
+        foreach (var generated in rules.GeneratedAffixes)
+            if (!poolById.ContainsKey(generated.Id)) nativeSpecialAffixIds.Add(generated.Id);
 
         // 先用原生流程建立完整装备结构，再只替换用户明确编辑过的词条列表。
         var saveItem = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
@@ -137,12 +143,20 @@ internal static class GameEditorService
             // 即使桌面端已经过滤，桥接层仍需再次校验，防止旧客户端或手工请求绕过规则。
             if (!seen.Add(requested.Id))
                 throw new InvalidOperationException($"词条 {requested.Id} 重复，游戏规则不允许重复添加同一词条。");
-            if (!affixTable.ContainsKey(requested.Id) || !ContainsAffix(rules.AllowedAffixes, requested.Id))
+            if (!affixTable.ContainsKey(requested.Id) ||
+                (!poolById.ContainsKey(requested.Id) && !nativeSpecialAffixIds.Contains(requested.Id)))
                 throw new InvalidOperationException($"词条 {requested.Id} 不在当前装备、品级和等级的游戏词条池中。");
             if (requested.Level < 1 || requested.Level > rules.MaximumAffixLevel)
                 throw new InvalidOperationException($"词条 {requested.Id} 的合法等级为 1-{rules.MaximumAffixLevel}。");
 
             var tableAffix = affixTable[requested.Id];
+            requestedQualityCounts.TryGetValue(tableAffix.quality, out var requestedQualityCount);
+            requestedQualityCount++;
+            if (!rules.AffixQualityLimits.TryGetValue(tableAffix.quality, out var qualityLimit) ||
+                requestedQualityCount > qualityLimit)
+                throw new InvalidOperationException($"档位 {tableAffix.quality} 最多允许 {qualityLimit} 条词条。");
+            requestedQualityCounts[tableAffix.quality] = requestedQualityCount;
+
             // 普通随机词条沿用游戏池的数值倍率；原生固定词条不在随机池时使用完整倍率。
             var rate = poolById.TryGetValue(requested.Id, out var poolInfo) ? poolInfo.Rate : 1f;
             var saveAffix = SaveAffixData.Create(requested.Id, tableAffix.quality, requested.Level,
@@ -388,10 +402,19 @@ internal static class GameEditorService
         return false;
     }
 
-    private static bool ContainsAffix(List<AffixOption> options, int affixId)
+    private static Dictionary<int, SAffixInfo> BuildAffixPoolMap(
+        TEquip template,
+        int equipmentLevel,
+        IEnumerable<int> affixQualities)
     {
-        foreach (var option in options) if (option.Id == affixId) return true;
-        return false;
+        var result = new Dictionary<int, SAffixInfo>();
+        foreach (var affixQuality in affixQualities)
+        {
+            var pool = EquipSys.GetEquipAffixPool(template.id, template.part, affixQuality, equipmentLevel);
+            for (var i = 0; pool != null && i < pool.Count; i++)
+                result[pool[i].id] = pool[i];
+        }
+        return result;
     }
 
     private static string GetTalentDisplayName(TTalent talent)

@@ -56,6 +56,8 @@ public sealed class EquipmentRules
 {
     public int MaximumAffixCount { get; set; }
     public int MaximumAffixLevel { get; set; }
+    public Dictionary<int, int> AffixQualityLimits { get; set; } = new();
+    public Dictionary<int, string> AffixQualityNames { get; set; } = new();
     public List<AffixOption> AllowedAffixes { get; set; } = new();
     public List<AffixEdit> GeneratedAffixes { get; set; } = new();
 }
@@ -64,6 +66,7 @@ public sealed class AffixOption
 {
     public int Id { get; set; }
     public int Quality { get; set; }
+    public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
     public string Display => $"{Id} · {Name}";
 }
@@ -72,8 +75,17 @@ public sealed class AffixEdit
 {
     public int Id { get; set; }
     public int Quality { get; set; }
+    public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
     public int Level { get; set; }
+}
+
+public sealed class AffixCategoryOption
+{
+    public int Quality { get; set; }
+    public string Name { get; set; } = "";
+    public int Limit { get; set; }
+    public string Display => $"{Name} · 最多 {Limit} 条";
 }
 
 public sealed class HeroEdit

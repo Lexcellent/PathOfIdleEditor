@@ -55,6 +55,8 @@ internal sealed class EquipmentRules
     // 这些限制由当前游戏表和原生方法实时计算，桌面端不维护规则副本。
     public int MaximumAffixCount { get; set; }
     public int MaximumAffixLevel { get; set; }
+    public Dictionary<int, int> AffixQualityLimits { get; set; } = new();
+    public Dictionary<int, string> AffixQualityNames { get; set; } = new();
     public List<AffixOption> AllowedAffixes { get; set; } = new();
     public List<AffixEdit> GeneratedAffixes { get; set; } = new();
 }
@@ -63,6 +65,7 @@ internal sealed class AffixOption
 {
     public int Id { get; set; }
     public int Quality { get; set; }
+    public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
 }
 
@@ -70,6 +73,7 @@ internal sealed class AffixEdit
 {
     public int Id { get; set; }
     public int Quality { get; set; }
+    public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
     public int Level { get; set; }
 }

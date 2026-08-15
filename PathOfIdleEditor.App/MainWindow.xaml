@@ -120,16 +120,29 @@
                   <TextBlock x:Name="AffixRuleText" Text="选择装备、品级和等级后读取游戏词条池。" Foreground="#94A3B8" Margin="0,4,0,10" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                  <ComboBox x:Name="AllowedAffixCombo" DisplayMemberPath="Display" MinWidth="370" />
+                  <ComboBox x:Name="AffixQualityCombo" DisplayMemberPath="Display" MinWidth="180" SelectionChanged="AffixQualityCombo_SelectionChanged" />
+                  <ComboBox x:Name="AllowedAffixCombo" DisplayMemberPath="Display" MinWidth="330" />
                   <Button Content="添加词条" Click="AddAffixButton_Click" />
                   <Button Content="删除选中" Click="RemoveAffixButton_Click" Background="#B91C1C" />
                 </StackPanel>
                 <DataGrid Grid.Row="2" Grid.ColumnSpan="2" x:Name="AffixesGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="240"
-                          EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                          EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                          VirtualizingPanel.IsVirtualizingWhenGrouping="True">
+                  <DataGrid.GroupStyle>
+                    <GroupStyle>
+                      <GroupStyle.HeaderTemplate>
+                        <DataTemplate>
+                          <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,1" Padding="10,6" Margin="0,6,0,2">
+                            <TextBlock Text="{Binding Name}" Foreground="#7DD3FC" FontWeight="SemiBold" />
+                          </Border>
+                        </DataTemplate>
+                      </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                  </DataGrid.GroupStyle>
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="词条 ID" Binding="{Binding Id}" IsReadOnly="True" Width="90" />
                     <DataGridTextColumn Header="词条描述" Binding="{Binding Name}" IsReadOnly="True" Width="*" />
-                    <DataGridTextColumn Header="档位" Binding="{Binding Quality}" IsReadOnly="True" Width="80" />
+                    <DataGridTextColumn Header="类别" Binding="{Binding QualityName}" IsReadOnly="True" Width="110" />
                     <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="130" />
                   </DataGrid.Columns>
                 </DataGrid>

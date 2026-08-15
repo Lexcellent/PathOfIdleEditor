@@ -12,6 +12,7 @@ namespace PathOfIdleEditor.App;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<AffixEdit> _affixes = new();
+    private readonly ICollectionView _affixView;
     private EditorSnapshot? _snapshot;
     private EquipmentRules? _equipmentRules;
     private ICollectionView? _equipmentView;
@@ -21,7 +22,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        AffixesGrid.ItemsSource = _affixes;
+        _affixView = CollectionViewSource.GetDefaultView(_affixes);
+        _affixView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(AffixEdit.QualityName)));
+        AffixesGrid.ItemsSource = _affixView;
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -118,12 +121,24 @@ public partial class MainWindow : Window
                 return;
             EnsureSuccess(response);
             _equipmentRules = response.EquipmentRules ?? throw new InvalidDataException("桥接没有返回装备规则。");
-            AllowedAffixCombo.ItemsSource = _equipmentRules.AllowedAffixes;
-            AllowedAffixCombo.SelectedIndex = _equipmentRules.AllowedAffixes.Count > 0 ? 0 : -1;
+            var affixCategories = _equipmentRules.AffixQualityLimits
+                .OrderBy(pair => pair.Key)
+                .Select(pair => new AffixCategoryOption
+                {
+                    Quality = pair.Key,
+                    Name = _equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"词条档位 {pair.Key}",
+                    Limit = pair.Value
+                })
+                .ToList();
+            AffixQualityCombo.ItemsSource = affixCategories;
+            AffixQualityCombo.SelectedIndex = affixCategories.Count > 0 ? 0 : -1;
             _affixes.Clear();
             foreach (var affix in _equipmentRules.GeneratedAffixes)
                 _affixes.Add(affix);
-            AffixRuleText.Text = $"游戏规则：最多 {_equipmentRules.MaximumAffixCount} 条词条；词条等级 1-{_equipmentRules.MaximumAffixLevel}；当前合法词条池 {_equipmentRules.AllowedAffixes.Count} 条。";
+            var qualityLimits = string.Join("，", _equipmentRules.AffixQualityLimits
+                .OrderBy(pair => pair.Key)
+                .Select(pair => $"{(_equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"档位 {pair.Key}")}最多 {pair.Value} 条"));
+            AffixRuleText.Text = $"游戏规则：总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条。";
             SetStatus("已根据当前装备、品级和等级刷新游戏规则。", true);
         }
         catch (Exception exception)
@@ -132,10 +147,28 @@ public partial class MainWindow : Window
                 return;
             _equipmentRules = null;
             _affixes.Clear();
+            AffixQualityCombo.ItemsSource = null;
             AllowedAffixCombo.ItemsSource = null;
             AffixRuleText.Text = $"无法读取规则：{exception.Message}";
             SetStatus($"读取装备规则失败：{exception.Message}", false);
         }
+    }
+
+    private void AffixQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_equipmentRules == null || AffixQualityCombo.SelectedItem is not AffixCategoryOption category)
+        {
+            AllowedAffixCombo.ItemsSource = null;
+            return;
+        }
+
+        // 每次只显示当前词条档位的原生候选池，避免不同档位的数量规则混在一起。
+        var options = _equipmentRules.AllowedAffixes
+            .Where(option => option.Quality == category.Quality)
+            .OrderBy(option => option.Id)
+            .ToList();
+        AllowedAffixCombo.ItemsSource = options;
+        AllowedAffixCombo.SelectedIndex = options.Count > 0 ? 0 : -1;
     }
 
     private void AddAffixButton_Click(object sender, RoutedEventArgs e)
@@ -160,7 +193,21 @@ public partial class MainWindow : Window
             SetStatus("同一个词条不能重复添加。", false);
             return;
         }
-        _affixes.Add(new AffixEdit { Id = option.Id, Quality = option.Quality, Name = option.Name, Level = 1 });
+        var currentQualityCount = _affixes.Count(affix => affix.Quality == option.Quality);
+        if (!_equipmentRules.AffixQualityLimits.TryGetValue(option.Quality, out var qualityLimit) ||
+            currentQualityCount >= qualityLimit)
+        {
+            SetStatus($"{option.QualityName}最多允许 {qualityLimit} 条词条。", false);
+            return;
+        }
+        _affixes.Add(new AffixEdit
+        {
+            Id = option.Id,
+            Quality = option.Quality,
+            QualityName = option.QualityName,
+            Name = option.Name,
+            Level = 1
+        });
         SetStatus($"已添加词条 {option.Id}，提交前仍会由游戏规则复核。", true);
     }
 
@@ -300,7 +347,8 @@ public partial class MainWindow : Window
 
     private static AffixEdit CloneAffix(AffixEdit value) => new()
     {
-        Id = value.Id, Quality = value.Quality, Name = value.Name, Level = value.Level
+        Id = value.Id, Quality = value.Quality, QualityName = value.QualityName,
+        Name = value.Name, Level = value.Level
     };
 
     private static void CommitGrid(DataGrid grid)
