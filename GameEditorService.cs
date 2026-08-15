@@ -118,30 +118,31 @@ internal static class GameEditorService
             rules.MaximumAffixCount += limit;
 
         // 只按实际数量大于 0 的词条档位读取原生池；稀有专属装备不会混入普通词条。
-        var poolById = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
-        var allowedAffixIds = new HashSet<int>();
-        foreach (var pair in poolById)
+        var poolByKey = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
+        var allowedAffixKeys = new HashSet<(int Id, int Quality)>();
+        foreach (var pair in poolByKey)
         {
-            if (!affixTable.ContainsKey(pair.Key))
+            if (!affixTable.ContainsKey(pair.Key.Id))
                 continue;
-            var affix = affixTable[pair.Key];
-            var qualityName = affixQualityTable.ContainsKey(affix.quality)
-                ? affixQualityTable[affix.quality].name
-                : $"词条档位 {affix.quality}";
-            rules.AffixQualityNames[affix.quality] = qualityName;
+            var affix = affixTable[pair.Key.Id];
+            var qualityName = affixQualityTable.ContainsKey(pair.Key.Quality)
+                ? affixQualityTable[pair.Key.Quality].name
+                : $"词条档位 {pair.Key.Quality}";
+            rules.AffixQualityNames[pair.Key.Quality] = qualityName;
             rules.AllowedAffixes.Add(new AffixOption
             {
                 Id = affix.id,
-                Quality = affix.quality,
+                // 同一基础词条可由不同档位的原生池生成，类别必须使用查询池的档位。
+                Quality = pair.Key.Quality,
                 QualityName = qualityName,
                 Name = GetAffixName(affix)
             });
-            allowedAffixIds.Add(affix.id);
+            allowedAffixKeys.Add(pair.Key);
         }
         // 固定词条不一定属于随机池，仍应允许用户删除后重新添加。
         foreach (var generated in rules.GeneratedAffixes)
         {
-            if (!allowedAffixIds.Add(generated.Id))
+            if (!allowedAffixKeys.Add((generated.Id, generated.Quality)))
                 continue;
             rules.AllowedAffixes.Add(new AffixOption
             {
@@ -163,13 +164,16 @@ internal static class GameEditorService
         if (edit.Affixes.Count > rules.MaximumAffixCount)
             throw new InvalidOperationException($"当前品级最多允许 {rules.MaximumAffixCount} 条词条。");
 
-        var poolById = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
+        var poolByKey = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
         var affixTable = TAffix.create();
         var seen = new HashSet<int>();
         var requestedQualityCounts = new Dictionary<int, int>();
-        var nativeSpecialAffixIds = new HashSet<int>();
+        var nativeSpecialAffixKeys = new HashSet<(int Id, int Quality)>();
         foreach (var generated in rules.GeneratedAffixes)
-            if (!poolById.ContainsKey(generated.Id)) nativeSpecialAffixIds.Add(generated.Id);
+        {
+            var generatedKey = (generated.Id, generated.Quality);
+            if (!poolByKey.ContainsKey(generatedKey)) nativeSpecialAffixKeys.Add(generatedKey);
+        }
 
         // 先用原生流程建立完整装备结构，再只替换用户明确编辑过的词条列表。
         var saveItem = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
@@ -180,23 +184,24 @@ internal static class GameEditorService
             // 即使桌面端已经过滤，桥接层仍需再次校验，防止旧客户端或手工请求绕过规则。
             if (!seen.Add(requested.Id))
                 throw new InvalidOperationException($"词条 {requested.Id} 重复，游戏规则不允许重复添加同一词条。");
+            var requestedKey = (requested.Id, requested.Quality);
             if (!affixTable.ContainsKey(requested.Id) ||
-                (!poolById.ContainsKey(requested.Id) && !nativeSpecialAffixIds.Contains(requested.Id)))
+                (!poolByKey.ContainsKey(requestedKey) && !nativeSpecialAffixKeys.Contains(requestedKey)))
                 throw new InvalidOperationException($"词条 {requested.Id} 不在当前装备、品级和等级的游戏词条池中。");
             if (requested.Level < 1 || requested.Level > rules.MaximumAffixLevel)
                 throw new InvalidOperationException($"词条 {requested.Id} 的合法等级为 1-{rules.MaximumAffixLevel}。");
 
-            var tableAffix = affixTable[requested.Id];
-            requestedQualityCounts.TryGetValue(tableAffix.quality, out var requestedQualityCount);
+            // 套装装备的实例档位可能与 TAffix 中的基础档位不同，必须按用户所见的实际档位计数。
+            requestedQualityCounts.TryGetValue(requested.Quality, out var requestedQualityCount);
             requestedQualityCount++;
-            if (!rules.AffixQualityLimits.TryGetValue(tableAffix.quality, out var qualityLimit) ||
+            if (!rules.AffixQualityLimits.TryGetValue(requested.Quality, out var qualityLimit) ||
                 requestedQualityCount > qualityLimit)
-                throw new InvalidOperationException($"档位 {tableAffix.quality} 最多允许 {qualityLimit} 条词条。");
-            requestedQualityCounts[tableAffix.quality] = requestedQualityCount;
+                throw new InvalidOperationException($"档位 {requested.Quality} 最多允许 {qualityLimit} 条词条。");
+            requestedQualityCounts[requested.Quality] = requestedQualityCount;
 
             // 普通随机词条沿用游戏池的数值倍率；原生固定词条不在随机池时使用完整倍率。
-            var rate = poolById.TryGetValue(requested.Id, out var poolInfo) ? poolInfo.Rate : 1f;
-            var saveAffix = SaveAffixData.Create(requested.Id, tableAffix.quality, requested.Level,
+            var rate = poolByKey.TryGetValue(requestedKey, out var poolInfo) ? poolInfo.Rate : 1f;
+            var saveAffix = SaveAffixData.Create(requested.Id, requested.Quality, requested.Level,
                 rate, EAffixValueType.random);
             if (saveAffix == null)
                 throw new InvalidOperationException($"游戏拒绝创建词条 {requested.Id}。");
@@ -455,17 +460,17 @@ internal static class GameEditorService
         return false;
     }
 
-    private static Dictionary<int, SAffixInfo> BuildAffixPoolMap(
+    private static Dictionary<(int Id, int Quality), SAffixInfo> BuildAffixPoolMap(
         TEquip template,
         int equipmentLevel,
         IEnumerable<int> affixQualities)
     {
-        var result = new Dictionary<int, SAffixInfo>();
+        var result = new Dictionary<(int Id, int Quality), SAffixInfo>();
         foreach (var affixQuality in affixQualities)
         {
             var pool = EquipSys.GetEquipAffixPool(template.id, template.part, affixQuality, equipmentLevel);
             for (var i = 0; pool != null && i < pool.Count; i++)
-                result[pool[i].id] = pool[i];
+                result[(pool[i].id, affixQuality)] = pool[i];
         }
         return result;
     }
