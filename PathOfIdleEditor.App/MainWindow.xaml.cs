@@ -44,6 +44,7 @@ public partial class MainWindow : Window
             EquipmentTemplateCombo.ItemsSource = _equipmentView;
             EquipmentLevelCombo.ItemsSource = _snapshot.EquipmentLevels;
             BlessingLevelCombo.ItemsSource = _snapshot.BlessingLevels;
+            HeroQualityCombo.ItemsSource = _snapshot.HeroQualities;
             HeroCombo.ItemsSource = _snapshot.Heroes;
             BindInventory(_snapshot.Inventory);
             BindLord(_snapshot.Lord);
@@ -515,6 +516,7 @@ public partial class MainWindow : Window
         IntelligenceText.Text = hero.Intelligence.ToString(CultureInfo.InvariantCulture);
         RemainingPointsText.Text = hero.RemainingSkillPoints.ToString(CultureInfo.InvariantCulture);
         BlessingLevelCombo.SelectedItem = hero.BlessingLevel;
+        HeroQualityCombo.SelectedItem = _snapshot?.HeroQualities.FirstOrDefault(item => item.Value == hero.Quality);
         GrowthGrid.ItemsSource = hero.GrowthAttributes;
         TalentsGrid.ItemsSource = hero.TalentSlots;
         var growthTotal = hero.GrowthAttributes.Sum(item => item.Value);
@@ -525,6 +527,19 @@ public partial class MainWindow : Window
 
     private async void RerollGrowthButton_Click(object sender, RoutedEventArgs e) =>
         await RunHeroActionAsync("rerollHeroGrowth");
+
+    private async void ChangeHeroQualityButton_Click(object sender, RoutedEventArgs e)
+    {
+        var hero = HeroCombo.SelectedItem as HeroEdit;
+        var quality = HeroQualityCombo.SelectedItem as RuleOption;
+        if (hero == null || quality == null)
+        {
+            SetStatus("操作失败：请选择角色和目标品级。", false);
+            return;
+        }
+        hero.Quality = quality.Value;
+        await RunHeroActionAsync("changeHeroQuality");
+    }
 
     private async void SyncAlienSkillsButton_Click(object sender, RoutedEventArgs e) =>
         await RunHeroActionAsync("syncAlienSkills");
@@ -543,6 +558,7 @@ public partial class MainWindow : Window
             var refreshed = response.Snapshot ?? throw new InvalidDataException("桥接没有返回更新后的角色数据。");
             _snapshot = refreshed;
             BlessingLevelCombo.ItemsSource = refreshed.BlessingLevels;
+            HeroQualityCombo.ItemsSource = refreshed.HeroQualities;
             HeroCombo.ItemsSource = refreshed.Heroes;
             HeroCombo.SelectedItem = refreshed.Heroes.FirstOrDefault(item => item.UniqueId == hero.UniqueId);
             BindInventory(refreshed.Inventory);

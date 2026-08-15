@@ -58,6 +58,7 @@ internal static class BridgeServer
         "equipmentRules" when request.Equipment != null => new EditorResponse { Success = true, Message = "已读取当前装备规则。", EquipmentRules = GameEditorService.GetEquipmentRules(request.Equipment) },
         "generateEquipment" when request.Equipment != null => new EditorResponse { Success = true, Message = GameEditorService.GenerateEquipment(request.Equipment) },
         "updateHero" when request.Hero != null => new EditorResponse { Success = true, Message = GameEditorService.UpdateHero(request.Hero) },
+        "changeHeroQuality" when request.Hero != null => GameEditorService.ChangeHeroQuality(request.Hero.UniqueId, request.Hero.Quality),
         "rerollHeroGrowth" when request.Hero != null => GameEditorService.RerollHeroGrowth(request.Hero.UniqueId),
         "syncAlienSkills" when request.Hero != null => GameEditorService.SyncAlienSkills(request.Hero.UniqueId),
         "inspireHero" when request.Hero != null => GameEditorService.InspireHero(request.Hero.UniqueId),

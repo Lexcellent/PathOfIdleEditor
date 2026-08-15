@@ -347,7 +347,7 @@
           <Border Style="{StaticResource Card}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
               <Label Content="角色" /><ComboBox Grid.Column="1" Grid.ColumnSpan="3" x:Name="HeroCombo" DisplayMemberPath="Display" SelectionChanged="HeroCombo_SelectionChanged" />
               <Label Grid.Row="1" Content="名称" /><TextBox Grid.Row="1" Grid.Column="1" x:Name="HeroNameText" />
               <Label Grid.Row="1" Grid.Column="2" Content="等级（读取游戏上限）" /><TextBox Grid.Row="1" Grid.Column="3" x:Name="HeroLevelText" />
@@ -357,6 +357,11 @@
               <Label Grid.Row="3" Grid.Column="2" Content="剩余技能点" /><TextBox Grid.Row="3" Grid.Column="3" x:Name="RemainingPointsText" />
               <Label Grid.Row="4" Content="赐福等级" /><ComboBox Grid.Row="4" Grid.Column="1" x:Name="BlessingLevelCombo" />
               <TextBlock Grid.Row="4" Grid.Column="2" Grid.ColumnSpan="2" Text="合法等级读取自当前游戏；0 表示清除赐福。" Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,0,0" />
+              <Label Grid.Row="5" Content="角色品级" />
+              <ComboBox Grid.Row="5" Grid.Column="1" x:Name="HeroQualityCombo" DisplayMemberPath="Display" />
+              <TextBlock Grid.Row="5" Grid.Column="2" Text="调用游戏原生扭曲核心并重算属性" Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,8,0" TextWrapping="Wrap" />
+              <Button Grid.Row="5" Grid.Column="3" Content="应用品级并重算" Click="ChangeHeroQualityButton_Click" Padding="14,8"
+                      ToolTip="单独应用品级；游戏会重新生成该品级的基础属性和每级成长，并同步技能点。" />
             </Grid>
           </Border>
 

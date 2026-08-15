@@ -27,6 +27,16 @@ internal static class GameEditorService
             if (!snapshot.BlessingLevels.Contains(pair.Key)) snapshot.BlessingLevels.Add(pair.Key);
         snapshot.BlessingLevels.Sort();
 
+        // 角色品级选项直接来自当前游戏表，名称和可用品级会随版本更新。
+        foreach (var pair in THeroQuality.create())
+            if (pair.Value != null)
+                snapshot.HeroQualities.Add(new RuleOption
+                {
+                    Value = pair.Key,
+                    Name = pair.Value.name ?? $"品级 {pair.Key}"
+                });
+        snapshot.HeroQualities.Sort((a, b) => a.Value.CompareTo(b.Value));
+
         var partTable = TEquipPart.create();
         var templates = TEquip.create();
         var maximumHeroLevel = GetMaximumHeroLevel();
@@ -726,6 +736,8 @@ internal static class GameEditorService
         if (hero.IsAdventureBusy())
             throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再修改。");
         var save = hero.saveHeroData;
+        if (edit.Quality != 0 && edit.Quality != save.quality)
+            throw new InvalidOperationException("角色品级已在游戏中变化，请刷新后再编辑其他属性；品级请使用单独的“应用品级并重算”按钮。");
         var heroLevelTable = THeroLevel.create();
         var maxHeroLevel = GetMaximumHeroLevel(heroLevelTable);
         if (!heroLevelTable.ContainsKey(edit.Level))
@@ -848,6 +860,49 @@ internal static class GameEditorService
         }
     }
 
+    internal static EditorResponse ChangeHeroQuality(int uniqueId, int targetQuality)
+    {
+        var lord = GetLord();
+        var hero = FindHero(lord, uniqueId);
+        if (hero.IsAdventureBusy())
+            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再修改品级。");
+        var qualityTable = THeroQuality.create();
+        if (!qualityTable.ContainsKey(targetQuality))
+            throw new InvalidOperationException($"角色品级 {targetQuality} 不存在于当前游戏 THeroQuality 表中。");
+
+        var previousQuality = hero.saveHeroData.quality;
+        const int maximumSteps = 100;
+        var steps = 0;
+        while (hero.saveHeroData.quality != targetQuality)
+        {
+            if (++steps > maximumSteps)
+                throw new InvalidOperationException("游戏原生品级修改没有到达目标品级，操作已中止。");
+            var currentQuality = hero.saveHeroData.quality;
+            var direction = currentQuality < targetQuality ? 1 : -1;
+            var nextQuality = currentQuality + direction;
+            if (!qualityTable.ContainsKey(nextQuality))
+                throw new InvalidOperationException($"当前游戏品级表在 {currentQuality} 与目标品级 {targetQuality} 之间不连续。");
+
+            // ChangeQuality 会原生重建主属性、基础属性和每级成长，并同步异化技能与技能点。
+            // 100% 使用原生最高升品概率，0% 在品级大于 1 时固定降一级；循环会校验实际结果直至目标。
+            hero.ChangeQuality(direction > 0 ? 100f : 0f);
+            var changedQuality = hero.saveHeroData.quality;
+            if (Math.Abs(changedQuality - currentQuality) != 1 || !qualityTable.ContainsKey(changedQuality))
+                throw new InvalidOperationException($"游戏拒绝从品级 {currentQuality} 执行有效的逐级调整。");
+        }
+
+        SaveNow();
+        var qualityName = qualityTable[targetQuality]?.name ?? $"品级 {targetQuality}";
+        return new EditorResponse
+        {
+            Success = true,
+            Message = previousQuality == targetQuality
+                ? $"“{GetHeroName(hero)}”已经是“{qualityName}”，未修改属性。"
+                : $"已使用游戏原生方法把“{GetHeroName(hero)}”从品级 {previousQuality} 调整为“{qualityName}”，并重算属性、成长与技能点。",
+            Snapshot = GetSnapshot()
+        };
+    }
+
     internal static EditorResponse SyncAlienSkills(int uniqueId)
     {
         var lord = GetLord();
@@ -954,6 +1009,7 @@ internal static class GameEditorService
             Level = save.level,
             MaximumLevel = Math.Max(1, maximumLevel),
             BlessingLevel = save.blessLevel,
+            Quality = save.quality,
             Strength = ReadAttribute(save, EAttrType.STR),
             Dexterity = ReadAttribute(save, EAttrType.DEX),
             Intelligence = ReadAttribute(save, EAttrType.INT),

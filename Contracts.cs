@@ -29,6 +29,7 @@ internal sealed class EditorSnapshot
     public List<RuleOption> EquipmentQualities { get; set; } = new();
     public List<int> EquipmentLevels { get; set; } = new();
     public List<int> BlessingLevels { get; set; } = new();
+    public List<RuleOption> HeroQualities { get; set; } = new();
     public List<HeroEdit> Heroes { get; set; } = new();
     public InventorySnapshot Inventory { get; set; } = new();
     public LordEdit Lord { get; set; } = new();
@@ -193,6 +194,7 @@ internal sealed class HeroEdit
     public int Level { get; set; }
     public int MaximumLevel { get; set; }
     public int BlessingLevel { get; set; }
+    public int Quality { get; set; }
     public float Strength { get; set; }
     public float Dexterity { get; set; }
     public float Intelligence { get; set; }
