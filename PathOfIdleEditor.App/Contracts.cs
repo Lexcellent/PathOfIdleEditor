@@ -247,6 +247,7 @@ public sealed class TalentSlotEdit : INotifyPropertyChanged
     public int SlotId { get; set; }
     public bool IsAlien { get; set; }
     public bool IsInspired { get; set; }
+    public bool CanChangeTalent { get; set; }
     public int TalentId
     {
         get => _talentId;
@@ -310,6 +311,9 @@ public sealed class SkillOption
     public int TalentId { get; set; }
     public int SkillId { get; set; }
     public string Name { get; set; } = "";
+    public string JobName { get; set; } = "";
     public int MaximumLevel { get; set; }
-    public string Display => $"{Name}  ·  上限 {MaximumLevel}";
+    public string Display => string.IsNullOrWhiteSpace(JobName)
+        ? $"{Name}  ·  上限 {MaximumLevel}"
+        : $"{Name}  ·  {JobName}  ·  上限 {MaximumLevel}";
 }

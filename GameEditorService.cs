@@ -955,6 +955,8 @@ internal static class GameEditorService
                 if (option.TalentId == requested.TalentId) { selected = option; break; }
             if (selected == null)
                 throw new InvalidOperationException($"技能树位置 {requested.SlotId} 不支持天赋/技能 {requested.TalentId}。");
+            if (!rule.CanChangeTalent && requested.TalentId != rule.TalentId)
+                throw new InvalidOperationException($"技能树位置 {requested.SlotId} 是基础技能，游戏规则不允许修改。");
             if (requested.Level < rule.MinimumLevel || requested.Level > selected.MaximumLevel)
                 throw new InvalidOperationException($"“{selected.Name}”的合法等级为 {rule.MinimumLevel}-{selected.MaximumLevel}。");
             if (rule.IsAlien || rule.IsInspired)
@@ -991,14 +993,11 @@ internal static class GameEditorService
         {
             var isExtra = extraTargets.TryGetValue(requested.SlotId, out var extraTarget);
             var target = isExtra ? extraTarget! : save.talentDic[requested.SlotId];
-            var oldTalent = TTalent.create()[target.id];
-            var newTalent = TTalent.create()[requested.TalentId];
-            if (oldTalent.skillId == save.baseSkillId && newTalent.skillId > 0)
-                save.baseSkillId = newTalent.skillId;
             target.id = requested.TalentId;
-            // 启迪天赋本来就来自其他职业，但不属于异化技能，不能混用两个原生标记。
-            if (!target.isInspired)
-                target.isAlien = newTalent.jobId != save.jobId;
+            var slotRule = bySlot[requested.SlotId];
+            // 固定主动槽即使选择其他职业技能也不占异化名额；只有原生额外槽保留来源标记。
+            target.isInspired = slotRule.IsInspired;
+            target.isAlien = slotRule.IsAlien;
             target.SetLevel(requested.Level);
             if (isExtra)
                 save.talentDic[requested.TalentId] = target;
@@ -1202,8 +1201,7 @@ internal static class GameEditorService
         var save = hero.saveHeroData;
         var runtime = hero.heroTalentData.talentDic;
         var talentTable = TTalent.create();
-        // 由游戏自身返回该角色可使用的技能天赋池，再按当前位置类型和层级筛选。
-        var legalSkillPool = save.GetSkillTalentList();
+        var jobTable = THeroJob.create();
         var otherJobSkillPool = save.GetOtherJobSkillPool();
         var otherJobMasteryPool = hero.heroTalentData.GetOtherJobMasteryPool();
 
@@ -1216,15 +1214,18 @@ internal static class GameEditorService
             var currentRuntime = runtime.ContainsKey(pair.Key) ? runtime[pair.Key] : null;
             var cap = currentRuntime?.GetTalentLevelCap() ?? Math.Max(0, saved.level);
             var minimum = currentRuntime == null ? 0 : Math.Max(0, hero.heroTalentData.GetTalentMinSaveLevel(currentRuntime));
+            var isBaseSkill = !saved.isAlien && !saved.isInspired && currentTable.skillId > 0 &&
+                currentTable.skillId == save.baseSkillId;
             var slot = new TalentSlotEdit
             {
                 SlotId = pair.Key,
                 TalentId = saved.id,
                 SkillId = currentTable.skillId,
                 Kind = saved.isInspired ? "启迪天赋" : saved.isAlien ? "异化技能" :
-                    currentTable.skillId > 0 ? "技能" : "天赋/专精",
+                    isBaseSkill ? "基础技能" : currentTable.skillId > 0 ? "主动技能" : "天赋/专精",
                 IsAlien = saved.isAlien,
                 IsInspired = saved.isInspired,
+                CanChangeTalent = !isBaseSkill && (saved.isAlien || saved.isInspired || currentTable.skillId > 0),
                 Name = GetTalentDisplayName(currentTable),
                 Level = saved.level,
                 MinimumLevel = minimum,
@@ -1247,6 +1248,7 @@ internal static class GameEditorService
                         TalentId = candidate.id,
                         SkillId = candidate.skillId,
                         Name = GetTalentDisplayName(candidate),
+                        JobName = GetHeroJobName(jobTable, candidate.jobId),
                         MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
                     });
                 }
@@ -1264,22 +1266,26 @@ internal static class GameEditorService
                         TalentId = candidate.id,
                         SkillId = candidate.skillId,
                         Name = GetTalentDisplayName(candidate),
+                        JobName = GetHeroJobName(jobTable, candidate.jobId),
                         MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
                     });
                 }
             }
-            else if (currentTable.skillId > 0)
+            else if (currentTable.skillId > 0 && !isBaseSkill)
             {
-                for (var i = 0; legalSkillPool != null && i < legalSkillPool.Count; i++)
+                // 普通主动槽允许选择所有职业中与当前槽位类型、层级兼容的主动技能。
+                foreach (var candidatePair in talentTable)
                 {
-                    var candidate = legalSkillPool[i];
-                    if (candidate == null || candidate.type != currentTable.type || candidate.floor != currentTable.floor)
+                    var candidate = candidatePair.Value;
+                    if (candidate == null || candidate.skillId <= 0 ||
+                        candidate.type != currentTable.type || candidate.floor != currentTable.floor)
                         continue;
                     slot.SkillOptions.Add(new SkillOption
                     {
                         TalentId = candidate.id,
                         SkillId = candidate.skillId,
                         Name = GetTalentDisplayName(candidate),
+                        JobName = GetHeroJobName(jobTable, candidate.jobId),
                         MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
                     });
                 }
@@ -1291,6 +1297,7 @@ internal static class GameEditorService
                     TalentId = currentTable.id,
                     SkillId = currentTable.skillId,
                     Name = GetTalentDisplayName(currentTable),
+                    JobName = GetHeroJobName(jobTable, currentTable.jobId),
                     MaximumLevel = Math.Max(minimum, cap)
                 });
             }
@@ -1301,10 +1308,15 @@ internal static class GameEditorService
                     TalentId = currentTable.id,
                     SkillId = currentTable.skillId,
                     Name = GetTalentDisplayName(currentTable),
+                    JobName = GetHeroJobName(jobTable, currentTable.jobId),
                     MaximumLevel = Math.Max(minimum, cap)
                 });
             }
-            slot.SkillOptions.Sort((a, b) => a.TalentId.CompareTo(b.TalentId));
+            slot.SkillOptions.Sort((a, b) =>
+            {
+                var jobCompare = string.Compare(a.JobName, b.JobName, StringComparison.CurrentCulture);
+                return jobCompare != 0 ? jobCompare : a.TalentId.CompareTo(b.TalentId);
+            });
             result.Add(slot);
         }
         result.Sort((a, b) => a.SlotId.CompareTo(b.SlotId));
@@ -1484,6 +1496,12 @@ internal static class GameEditorService
         }
         return string.IsNullOrWhiteSpace(talent.name) ? $"天赋 {talent.id}" : talent.name;
     }
+
+    private static string GetHeroJobName(
+        Il2CppSystem.Collections.Generic.Dictionary<int, THeroJob> jobTable,
+        int jobId) => jobTable.ContainsKey(jobId) && jobTable[jobId] != null
+            ? jobTable[jobId].name ?? $"职业 {jobId}"
+            : $"职业 {jobId}";
 
     private static string GetAffixName(TAffix affix) =>
         string.IsNullOrWhiteSpace(affix.des) ? $"词条 {affix.id}" : affix.des;

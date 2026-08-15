@@ -434,6 +434,7 @@
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <ComboBox ItemsSource="{Binding SkillOptions}" DisplayMemberPath="Display" SelectedValuePath="TalentId"
+                              IsEnabled="{Binding CanChangeTalent}"
                               SelectedValue="{Binding TalentId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               SelectionChanged="SkillOption_SelectionChanged" />
                   </DataTemplate>

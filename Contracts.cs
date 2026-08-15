@@ -232,6 +232,7 @@ internal sealed class TalentSlotEdit
     public int MaximumLevel { get; set; }
     public bool IsAlien { get; set; }
     public bool IsInspired { get; set; }
+    public bool CanChangeTalent { get; set; }
     public List<SkillOption> SkillOptions { get; set; } = new();
 }
 
@@ -240,5 +241,6 @@ internal sealed class SkillOption
     public int TalentId { get; set; }
     public int SkillId { get; set; }
     public string Name { get; set; } = "";
+    public string JobName { get; set; } = "";
     public int MaximumLevel { get; set; }
 }
