@@ -397,6 +397,8 @@
                 <TextBlock x:Name="ExtraTalentRuleText" Foreground="#94A3B8" Margin="0,4,0,0" TextWrapping="Wrap" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
+                <Button Content="增加一个异化技能" Click="AddAlienSkillButton_Click" Padding="14,8" Margin="0,0,8,0"
+                        ToolTip="调用游戏原生跨职业技能池，在可用技能树行中随机增加一个异化技能；不消耗血肉结晶。" />
                 <Button Content="按游戏规则同步异化技能" Click="SyncAlienSkillsButton_Click" Padding="14,8" Margin="0,0,8,0"
                         ToolTip="按当前角色容量清理无效或超额异化技能，并由游戏随机补齐可用异化技能。" />
               </StackPanel>
@@ -406,7 +408,28 @@
                     EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
               <DataGridTextColumn Header="位置" Binding="{Binding SlotId}" IsReadOnly="True" Width="75" />
-              <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="100" />
+              <DataGridTemplateColumn Header="来源标识" Width="120">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Border CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                      <Border.Style>
+                        <Style TargetType="Border">
+                          <Setter Property="Background" Value="#334155" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsAlien}" Value="True">
+                              <Setter Property="Background" Value="#7C3AED" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsInspired}" Value="True">
+                              <Setter Property="Background" Value="#B45309" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Border.Style>
+                      <TextBlock Text="{Binding Kind}" Foreground="White" FontWeight="SemiBold" />
+                    </Border>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTemplateColumn Header="技能 / 天赋（技能可更换）" Width="*">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>

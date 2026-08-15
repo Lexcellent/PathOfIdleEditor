@@ -944,6 +944,8 @@ internal static class GameEditorService
         var currentSlots = BuildTalentSlots(hero);
         var bySlot = new Dictionary<int, TalentSlotEdit>();
         foreach (var slot in currentSlots) bySlot[slot.SlotId] = slot;
+        var extraRekeys = new Dictionary<int, int>();
+        var requestedExtraKeys = new HashSet<int>();
         foreach (var requested in edit.TalentSlots)
         {
             if (!bySlot.TryGetValue(requested.SlotId, out var rule))
@@ -955,7 +957,18 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"技能树位置 {requested.SlotId} 不支持天赋/技能 {requested.TalentId}。");
             if (requested.Level < rule.MinimumLevel || requested.Level > selected.MaximumLevel)
                 throw new InvalidOperationException($"“{selected.Name}”的合法等级为 {rule.MinimumLevel}-{selected.MaximumLevel}。");
+            if (rule.IsAlien || rule.IsInspired)
+            {
+                if (!requestedExtraKeys.Add(requested.TalentId))
+                    throw new InvalidOperationException($"额外技能/天赋 {requested.TalentId} 被重复选择。");
+                extraRekeys[requested.SlotId] = requested.TalentId;
+            }
         }
+
+        var oldExtraKeys = new HashSet<int>(extraRekeys.Keys);
+        foreach (var pair in extraRekeys)
+            if (save.talentDic.ContainsKey(pair.Value) && !oldExtraKeys.Contains(pair.Value))
+                throw new InvalidOperationException($"不能把额外技能/天赋改为 {pair.Value}：该存档位置已经被占用。");
 
         var targetBlessingLevel = edit.BlessingLevel;
         save.level = edit.Level;
@@ -966,9 +979,18 @@ internal static class GameEditorService
         save.mainAttrDic[EAttrType.INT] = Math.Max(0, edit.Intelligence);
         foreach (var growth in edit.GrowthAttributes)
             save.baseAttrUpDic[(EAttrType)growth.Type] = growth.Value;
+
+        // 额外项目以天赋 ID 作为字典键。先保存对象并统一移除旧键，才能安全支持互换候选。
+        var extraTargets = new Dictionary<int, SaveTalentData>();
+        foreach (var pair in extraRekeys)
+        {
+            extraTargets[pair.Key] = save.talentDic[pair.Key];
+            save.talentDic.Remove(pair.Key);
+        }
         foreach (var requested in edit.TalentSlots)
         {
-            var target = save.talentDic[requested.SlotId];
+            var isExtra = extraTargets.TryGetValue(requested.SlotId, out var extraTarget);
+            var target = isExtra ? extraTarget! : save.talentDic[requested.SlotId];
             var oldTalent = TTalent.create()[target.id];
             var newTalent = TTalent.create()[requested.TalentId];
             if (oldTalent.skillId == save.baseSkillId && newTalent.skillId > 0)
@@ -978,6 +1000,8 @@ internal static class GameEditorService
             if (!target.isInspired)
                 target.isAlien = newTalent.jobId != save.jobId;
             target.SetLevel(requested.Level);
+            if (isExtra)
+                save.talentDic[requested.TalentId] = target;
         }
 
         // 重新初始化运行时角色，使属性派生值、装备效果和技能对象与存档字段保持一致。
@@ -1062,6 +1086,53 @@ internal static class GameEditorService
         };
     }
 
+    internal static EditorResponse AddAlienSkill(int uniqueId)
+    {
+        var lord = GetLord();
+        var hero = FindHero(lord, uniqueId);
+        if (hero.IsAdventureBusy())
+            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
+        var save = hero.saveHeroData;
+        var maximum = Math.Max(0, save.GetAlienSkillCount());
+        var previousCount = CountExtraTalents(save, alien: true);
+        if (previousCount >= maximum)
+            throw new InvalidOperationException($"该角色的异化技能已经达到游戏当前上限 {maximum} 个。");
+
+        // 原生接口按技能树行寻找空位并从其他职业技能池随机选择；一次调用最多增加一个。
+        var candidateRows = new SortedSet<int>();
+        var skillPool = save.GetSkillTalentList();
+        for (var index = 0; skillPool != null && index < skillPool.Count; index++)
+            if (skillPool[index] != null)
+                candidateRows.Add(skillPool[index].floor);
+        foreach (var row in candidateRows)
+        {
+            save.TryAddAlienSkillOnRow(row);
+            if (CountExtraTalents(save, alien: true) > previousCount)
+                break;
+        }
+        var currentCount = CountExtraTalents(save, alien: true);
+        if (currentCount <= previousCount)
+            throw new InvalidOperationException("游戏没有找到可放置异化技能的空位或可用的其他职业技能。");
+
+        hero.Init();
+        SaveNow();
+        return new EditorResponse
+        {
+            Success = true,
+            Message = $"已按游戏原生规则为“{GetHeroName(hero)}”增加 1 个异化技能；当前 {currentCount}/{maximum}。",
+            Snapshot = GetSnapshot()
+        };
+    }
+
+    private static int CountExtraTalents(SaveHeroData save, bool alien)
+    {
+        var count = 0;
+        foreach (var pair in save.talentDic)
+            if (pair.Value != null && (alien ? pair.Value.isAlien : pair.Value.isInspired))
+                count++;
+        return count;
+    }
+
     private static int GetMaximumInspiredTalents()
     {
         var house = Game.dataMgr?.nowSeasonData?.townData?.GetHouse((EHouseType)101);
@@ -1133,6 +1204,8 @@ internal static class GameEditorService
         var talentTable = TTalent.create();
         // 由游戏自身返回该角色可使用的技能天赋池，再按当前位置类型和层级筛选。
         var legalSkillPool = save.GetSkillTalentList();
+        var otherJobSkillPool = save.GetOtherJobSkillPool();
+        var otherJobMasteryPool = hero.heroTalentData.GetOtherJobMasteryPool();
 
         foreach (var pair in save.talentDic)
         {
@@ -1158,9 +1231,44 @@ internal static class GameEditorService
                 MaximumLevel = Math.Max(minimum, cap)
             };
 
-            // 额外技能以天赋 ID 作为存档字典键，不能像普通固定槽位那样原地换 ID；
-            // 异化由原生同步流程生成，启迪由神殿原生流程生成，这里只编辑其合法等级。
-            if (currentTable.skillId > 0 && !saved.isAlien && !saved.isInspired)
+            // 额外技能/天赋以天赋 ID 作为存档字典键；候选来自各自的游戏原生跨职业池，
+            // 提交切换时会同步重建字典键并保留异化、启迪来源标记。
+            if (saved.isAlien)
+            {
+                // 异化技能只能从游戏原生的其他职业技能池选择，并保持当前额外槽位的行与类型。
+                for (var i = 0; otherJobSkillPool != null && i < otherJobSkillPool.Count; i++)
+                {
+                    var candidate = otherJobSkillPool[i];
+                    if (candidate == null || candidate.skillId <= 0 ||
+                        candidate.type != currentTable.type || candidate.floor != currentTable.floor)
+                        continue;
+                    slot.SkillOptions.Add(new SkillOption
+                    {
+                        TalentId = candidate.id,
+                        SkillId = candidate.skillId,
+                        Name = GetTalentDisplayName(candidate),
+                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
+                    });
+                }
+            }
+            else if (saved.isInspired)
+            {
+                // 启迪候选完全来自游戏的其他职业专精池；当前项会在下方补回，便于保持不变。
+                for (var i = 0; otherJobMasteryPool != null && i < otherJobMasteryPool.Count; i++)
+                {
+                    var candidate = otherJobMasteryPool[i];
+                    if (candidate == null || candidate.masteryId <= 0)
+                        continue;
+                    slot.SkillOptions.Add(new SkillOption
+                    {
+                        TalentId = candidate.id,
+                        SkillId = candidate.skillId,
+                        Name = GetTalentDisplayName(candidate),
+                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
+                    });
+                }
+            }
+            else if (currentTable.skillId > 0)
             {
                 for (var i = 0; legalSkillPool != null && i < legalSkillPool.Count; i++)
                 {
