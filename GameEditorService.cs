@@ -763,7 +763,9 @@ internal static class GameEditorService
                 // 同一基础词条可由不同档位的原生池生成，类别必须使用查询池的档位。
                 Quality = pair.Key.Quality,
                 QualityName = qualityName,
-                Name = GetAffixName(affix)
+                Name = GetAffixName(affix),
+                ValueRanges = BuildAffixValueRanges(affix, pair.Key.Quality, pair.Value.Rate,
+                    rules.MaximumAffixLevel)
             });
             allowedAffixKeys.Add(pair.Key);
         }
@@ -783,7 +785,9 @@ internal static class GameEditorService
                     Id = affix.id,
                     Quality = pair.Key.Quality,
                     QualityName = qualityName,
-                    Name = GetAffixName(affix)
+                    Name = GetAffixName(affix),
+                    ValueRanges = BuildAffixValueRanges(affix, pair.Key.Quality, pair.Value,
+                        rules.MaximumAffixLevel)
                 });
             }
 
@@ -820,6 +824,14 @@ internal static class GameEditorService
                 Name = generated.Name
             });
         }
+        // 自动生成行复用对应候选的逐级数值范围，桌面端修改等级时即可立即联动显示。
+        foreach (var generated in rules.GeneratedAffixes)
+            foreach (var option in rules.AllowedAffixes)
+                if (option.Id == generated.Id && option.Quality == generated.Quality)
+                {
+                    generated.ValueRanges = new List<AffixValueRange>(option.ValueRanges);
+                    break;
+                }
         rules.AllowedAffixes.Sort((a, b) => a.Id.CompareTo(b.Id));
         return rules;
     }
@@ -880,6 +892,25 @@ internal static class GameEditorService
             var rate = poolByKey.TryGetValue(requestedKey, out var poolInfo)
                 ? poolInfo.Rate
                 : equipmentSpecialAffixes.TryGetValue(requestedKey, out var specialRate) ? specialRate : 1f;
+            if (requested.Value.HasValue)
+            {
+                AffixValueRange? valueRange = null;
+                foreach (var option in rules.AllowedAffixes)
+                {
+                    if (option.Id != requested.Id || option.Quality != requested.Quality)
+                        continue;
+                    foreach (var candidateRange in option.ValueRanges)
+                        if (candidateRange.Level == requested.Level)
+                        {
+                            valueRange = candidateRange;
+                            break;
+                        }
+                    break;
+                }
+                if (valueRange != null &&
+                    (requested.Value.Value < valueRange.Minimum || requested.Value.Value > valueRange.Maximum))
+                    throw new InvalidOperationException($"词条 {requested.Id} 在 {requested.Level} 级时的数值合法范围为 {valueRange.Minimum}-{valueRange.Maximum}。");
+            }
             var valueType = requested.Quality == (int)EItemQualityType.myth && affixTable[requested.Id].specialType == 1
                 ? EAffixValueType.specialRandom
                 : EAffixValueType.random;
@@ -1468,6 +1499,50 @@ internal static class GameEditorService
             var affixId = affixArr.GetValue(index, 0).Unbox<int>();
             if (affixId > 0)
                 result[(affixId, equipmentQuality)] = affixArr.GetValue(index, 1).Unbox<int>() / 100f;
+        }
+        return result;
+    }
+
+    private static List<AffixValueRange> BuildAffixValueRanges(
+        TAffix affix,
+        int quality,
+        float rate,
+        int maximumLevel)
+    {
+        var result = new List<AffixValueRange>();
+        // specialRandom 使用独立随机算法，当前游戏没有暴露端点；不能伪造范围并限制输入。
+        if (affix.specialType == 1 || rate <= 0)
+            return result;
+        var qualityTable = TAffixQuality.create();
+        if (!qualityTable.ContainsKey(quality))
+            return result;
+        var qualityRule = qualityTable[quality];
+        if (qualityRule == null || qualityRule.minRate <= 0 || qualityRule.maxRate < qualityRule.minRate)
+            return result;
+
+        for (var level = 1; level <= maximumLevel; level++)
+        {
+            try
+            {
+                // 原生 min 路径给出下端点；按档位 maxRate/minRate 缩放池倍率后再次走同一路径，
+                // 可保留游戏自身的 levelRate、取整和符号规则，同时得到对应上端点。
+                var minimumData = SaveAffixData.Create(affix.id, quality, level, rate, EAffixValueType.min);
+                var maximumData = SaveAffixData.Create(affix.id, quality, level,
+                    rate * qualityRule.maxRate / qualityRule.minRate, EAffixValueType.min);
+                if (minimumData == null || maximumData == null)
+                    return new List<AffixValueRange>();
+                result.Add(new AffixValueRange
+                {
+                    Level = level,
+                    Minimum = Math.Min(minimumData.value, maximumData.value),
+                    Maximum = Math.Max(minimumData.value, maximumData.value)
+                });
+            }
+            catch
+            {
+                // 某些特殊词条不支持普通 min 创建路径，整组范围留空并交给游戏随机。
+                return new List<AffixValueRange>();
+            }
         }
         return result;
     }

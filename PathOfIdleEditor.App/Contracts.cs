@@ -183,17 +183,46 @@ public sealed class AffixOption
     public int Quality { get; set; }
     public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
+    public List<AffixValueRange> ValueRanges { get; set; } = new();
     public string Display => $"{Id} · {Name}";
 }
 
-public sealed class AffixEdit
+public sealed class AffixEdit : INotifyPropertyChanged
 {
+    private int _level;
     public int Id { get; set; }
     public int Quality { get; set; }
     public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
-    public int Level { get; set; }
+    public int Level
+    {
+        get => _level;
+        set
+        {
+            if (_level == value) return;
+            _level = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Level)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ValueRange)));
+        }
+    }
     public int? Value { get; set; }
+    public List<AffixValueRange> ValueRanges { get; set; } = new();
+    public string ValueRange
+    {
+        get
+        {
+            var range = ValueRanges.FirstOrDefault(item => item.Level == Level);
+            return range == null ? "游戏特殊随机/未提供" : $"{range.Minimum}-{range.Maximum}";
+        }
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+public sealed class AffixValueRange
+{
+    public int Level { get; set; }
+    public int Minimum { get; set; }
+    public int Maximum { get; set; }
 }
 
 public sealed class AffixCategoryOption
