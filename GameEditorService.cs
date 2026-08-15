@@ -95,7 +95,6 @@ internal static class GameEditorService
             });
         }
         result.JobLevelRules.Sort((a, b) => a.Level.CompareTo(b.Level));
-        var talentTable = TTalent.create();
         foreach (var pair in lord.jobDic)
         {
             var runtime = pair.Value;
@@ -118,18 +117,23 @@ internal static class GameEditorService
             foreach (var rule in result.JobLevelRules)
                 edit.AttributeRules.Add(CreateLordJobAttributeRule(runtime, rule, jobLevels));
             ApplyLordJobAttributeRule(edit, edit.AttributeRules.Find(item => item.Level == edit.Level));
-            foreach (var talentPair in save.talentDic)
+            // 游戏界面使用运行时 talentList 展示魔偶加成；存档字典在部分旧存档完成
+            // 初始化前可能为空或尚未同步，因此这里也以运行时列表为准。
+            if (runtime.talentList == null || runtime.talentList.Count == 0)
+                runtime.UpdateTalentList(false);
+            for (var talentIndex = 0; runtime.talentList != null && talentIndex < runtime.talentList.Count; talentIndex++)
             {
-                if (!talentTable.ContainsKey(talentPair.Key))
+                var talentData = runtime.talentList[talentIndex];
+                var talent = talentData?.tTalentData;
+                if (talentData == null || talent == null)
                     continue;
-                var talent = talentTable[talentPair.Key];
                 edit.TalentBonuses.Add(new LordTalentBonusEdit
                 {
-                    TalentId = talentPair.Key,
+                    TalentId = talent.id,
                     Kind = talent.skillId > 0 ? "技能" : "天赋/专精",
                     Name = GetTalentDisplayName(talent),
-                    Level = talentPair.Value,
-                    MaximumLevel = Math.Max(1, save.GetMasteryMaxLevel())
+                    Level = talentData.level,
+                    MaximumLevel = Math.Max(1, talentData.maxLevel)
                 });
             }
             edit.TalentBonuses.Sort((a, b) => a.TalentId.CompareTo(b.TalentId));
@@ -162,7 +166,7 @@ internal static class GameEditorService
                 request.Strength != ReadLordJobAttribute(currentSave, EAttrType.STR) ||
                 request.Dexterity != ReadLordJobAttribute(currentSave, EAttrType.DEX) ||
                 request.Intelligence != ReadLordJobAttribute(currentSave, EAttrType.INT) ||
-                HasLordTalentChanges(currentSave, request.TalentBonuses);
+                HasLordTalentChanges(runtime, request.TalentBonuses);
             if (!jobChanged)
                 continue;
             if (!jobLevels.ContainsKey(request.Level))
@@ -183,8 +187,8 @@ internal static class GameEditorService
             if (attributeTotal != rule.totalAttr)
                 throw new InvalidOperationException($"“{request.JobName}”{request.Level} 级的力量、敏捷、智力总和必须为 {rule.totalAttr}，当前为 {attributeTotal}。");
 
-            var currentTalentIds = new HashSet<int>();
-            foreach (var pair in runtime.saveLordJobData.talentDic) currentTalentIds.Add(pair.Key);
+            var currentTalents = GetLordTalentData(runtime);
+            var currentTalentIds = new HashSet<int>(currentTalents.Keys);
             if (request.TalentBonuses.Count != currentTalentIds.Count)
                 throw new InvalidOperationException($"“{request.JobName}”的天赋加成列表已经变化，请刷新后重试。");
             var requestedTalentIds = new HashSet<int>();
@@ -192,8 +196,9 @@ internal static class GameEditorService
             {
                 if (!requestedTalentIds.Add(talent.TalentId) || !currentTalentIds.Contains(talent.TalentId))
                     throw new InvalidOperationException($"“{request.JobName}”包含无效的天赋加成 {talent.TalentId}。");
-                if (talent.Level < 1 || talent.Level > rule.masteryMaxLevel)
-                    throw new InvalidOperationException($"“{request.JobName}”的“{talent.Name}”等级加成合法范围为 1-{rule.masteryMaxLevel}。");
+                var maximumTalentLevel = Math.Max(1, rule.masteryMaxLevel);
+                if (talent.Level < 0 || talent.Level > maximumTalentLevel)
+                    throw new InvalidOperationException($"“{request.JobName}”的“{talent.Name}”等级加成合法范围为 0-{maximumTalentLevel}。");
             }
             validated.Add((runtime, request, rule));
         }
@@ -211,8 +216,10 @@ internal static class GameEditorService
             save.attrUpDic[(int)EAttrType.STR] = entry.Request.Strength;
             save.attrUpDic[(int)EAttrType.DEX] = entry.Request.Dexterity;
             save.attrUpDic[(int)EAttrType.INT] = entry.Request.Intelligence;
+            save.talentDic.Clear();
             foreach (var talent in entry.Request.TalentBonuses)
-                save.talentDic[talent.TalentId] = talent.Level;
+                if (talent.Level > 0)
+                    save.talentDic[talent.TalentId] = talent.Level;
             // 原生初始化会重建显示列表、技能加成和等级锁，再把新属性加成应用到对应职业角色。
             runtime.Init();
             runtime.AddJobAttrUp();
@@ -252,12 +259,25 @@ internal static class GameEditorService
         return save.attrUpDic != null && save.attrUpDic.ContainsKey(key) ? save.attrUpDic[key] : 0;
     }
 
-    private static bool HasLordTalentChanges(SaveLordJobData save, List<LordTalentBonusEdit> requested)
+    private static Dictionary<int, LordTalentData> GetLordTalentData(LordJobData runtime)
     {
-        if (save.talentDic.Count != requested.Count)
+        var result = new Dictionary<int, LordTalentData>();
+        for (var index = 0; runtime.talentList != null && index < runtime.talentList.Count; index++)
+        {
+            var talent = runtime.talentList[index];
+            if (talent?.tTalentData != null)
+                result[talent.tTalentData.id] = talent;
+        }
+        return result;
+    }
+
+    private static bool HasLordTalentChanges(LordJobData runtime, List<LordTalentBonusEdit> requested)
+    {
+        var current = GetLordTalentData(runtime);
+        if (current.Count != requested.Count)
             return true;
         foreach (var talent in requested)
-            if (!save.talentDic.ContainsKey(talent.TalentId) || save.talentDic[talent.TalentId] != talent.Level)
+            if (!current.ContainsKey(talent.TalentId) || current[talent.TalentId].level != talent.Level)
                 return true;
         return false;
     }
@@ -573,6 +593,9 @@ internal static class GameEditorService
         // 创建未入包的预览装备，让游戏原生生成器决定该组合的默认词条和数量规则。
         var preview = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
             ?? throw new InvalidOperationException("游戏原生装备生成器拒绝了当前组合。");
+        // 神话生成会把基础装备 ID 切换到 upMyth 指向的专用模板；专属词条位于该模板，
+        // 不能继续从下拉框中选中的基础模板读取。
+        var effectiveTemplate = ResolveGeneratedEquipmentTemplate(preview, template);
         var rules = new EquipmentRules
         {
             MaximumAffixLevel = Math.Max(1, levelData.affixMaxLevel)
@@ -631,14 +654,20 @@ internal static class GameEditorService
             rules.AffixQualityLimits.TryGetValue(pair.Key, out var configuredCount);
             AddAffixQualityLimit(rules, affixQualityTable, pair.Key, Math.Max(configuredCount, pair.Value));
         }
+        // 传奇/神话专属词条由具体装备的 legendAffixArr 声明，不属于按部位查询的通用随机池。
+        // 神话品级必须读取 upMyth 生成后的模板，并把固定词条数加入该类别的数量上限。
+        var equipmentSpecialAffixes = BuildEquipmentSpecialAffixMap(effectiveTemplate, edit.Quality);
+        if (equipmentSpecialAffixes.Count > 0)
+        {
+            rules.AffixQualityLimits.TryGetValue(edit.Quality, out var configuredSpecialCount);
+            AddAffixQualityLimit(rules, affixQualityTable, edit.Quality,
+                Math.Max(configuredSpecialCount, equipmentSpecialAffixes.Count));
+        }
         foreach (var limit in rules.AffixQualityLimits.Values)
             rules.MaximumAffixCount += limit;
 
         // 只按实际数量大于 0 的词条档位读取原生池；稀有专属装备不会混入普通词条。
-        var poolByKey = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
-        // 传奇/神话专属词条由具体装备的 legendAffixArr 声明，不属于按部位查询的通用随机池。
-        // 直接读取该数组，避免依赖一次预览结果而漏掉当前装备绑定的神话候选。
-        var equipmentSpecialAffixes = BuildEquipmentSpecialAffixMap(template, edit.Quality);
+        var poolByKey = BuildAffixPoolMap(effectiveTemplate, edit.Level, rules.AffixQualityLimits.Keys);
         var allowedAffixKeys = new HashSet<(int Id, int Quality)>();
         foreach (var pair in poolByKey)
         {
@@ -661,20 +690,43 @@ internal static class GameEditorService
         }
         foreach (var pair in equipmentSpecialAffixes)
         {
-            if (!affixTable.ContainsKey(pair.Key.Id) || !allowedAffixKeys.Add(pair.Key))
+            if (!affixTable.ContainsKey(pair.Key.Id))
                 continue;
             var affix = affixTable[pair.Key.Id];
             var qualityName = affixQualityTable.ContainsKey(pair.Key.Quality)
                 ? affixQualityTable[pair.Key.Quality].name
                 : $"词条档位 {pair.Key.Quality}";
             rules.AffixQualityNames[pair.Key.Quality] = qualityName;
-            rules.AllowedAffixes.Add(new AffixOption
+            if (allowedAffixKeys.Add(pair.Key))
             {
-                Id = affix.id,
-                Quality = pair.Key.Quality,
-                QualityName = qualityName,
-                Name = GetAffixName(affix)
-            });
+                rules.AllowedAffixes.Add(new AffixOption
+                {
+                    Id = affix.id,
+                    Quality = pair.Key.Quality,
+                    QualityName = qualityName,
+                    Name = GetAffixName(affix)
+                });
+            }
+
+            // CreateEquip 尚未构造运行时 ItemEquipData，因此可能还没有执行 AppendSpecialAffix。
+            // 专属词条是模板固定内容，直接补进默认编辑行，最终提交仍走原生 SaveAffixData.Create。
+            var alreadyGenerated = false;
+            foreach (var generated in rules.GeneratedAffixes)
+                if (generated.Id == pair.Key.Id && generated.Quality == pair.Key.Quality)
+                {
+                    alreadyGenerated = true;
+                    break;
+                }
+            if (!alreadyGenerated)
+                rules.GeneratedAffixes.Add(new AffixEdit
+                {
+                    Id = affix.id,
+                    Quality = pair.Key.Quality,
+                    QualityName = qualityName,
+                    Name = GetAffixName(affix),
+                    Level = rules.MaximumAffixLevel,
+                    Value = null
+                });
         }
         // 固定词条不一定属于随机池，仍应允许用户删除后重新添加。
         foreach (var generated in rules.GeneratedAffixes)
@@ -703,8 +755,12 @@ internal static class GameEditorService
         if (edit.Affixes.Count > rules.MaximumAffixCount)
             throw new InvalidOperationException($"当前品级最多允许 {rules.MaximumAffixCount} 条词条。");
 
-        var poolByKey = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
-        var equipmentSpecialAffixes = BuildEquipmentSpecialAffixMap(template, edit.Quality);
+        // 先创建保存数据，以实际生成后的模板 ID 读取神话专属词条。
+        var saveItem = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
+            ?? throw new InvalidOperationException("游戏原生装备生成器创建失败。");
+        var effectiveTemplate = ResolveGeneratedEquipmentTemplate(saveItem, template);
+        var poolByKey = BuildAffixPoolMap(effectiveTemplate, edit.Level, rules.AffixQualityLimits.Keys);
+        var equipmentSpecialAffixes = BuildEquipmentSpecialAffixMap(effectiveTemplate, edit.Quality);
         var affixTable = TAffix.create();
         var seen = new HashSet<int>();
         var requestedQualityCounts = new Dictionary<int, int>();
@@ -715,9 +771,7 @@ internal static class GameEditorService
             if (!poolByKey.ContainsKey(generatedKey)) nativeSpecialAffixKeys.Add(generatedKey);
         }
 
-        // 先用原生流程建立完整装备结构，再只替换用户明确编辑过的词条列表。
-        var saveItem = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
-            ?? throw new InvalidOperationException("游戏原生装备生成器创建失败。");
+        // 原生流程已建立完整装备结构，下面只替换用户明确编辑过的词条列表。
         // 在构造运行时 ItemData 前写入锻造等级，让原生初始化流程按最终装备等级重算基础属性。
         saveItem.forgeLevel = edit.ForgeLevel;
         saveItem.affixList.Clear();
@@ -868,38 +922,6 @@ internal static class GameEditorService
         return $"已保存角色“{GetHeroName(hero)}”，等级 {save.level}。";
     }
 
-    internal static EditorResponse RerollHeroGrowth(int uniqueId)
-    {
-        var lord = GetLord();
-        var hero = FindHero(lord, uniqueId);
-        if (hero.IsAdventureBusy())
-            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
-        var house = Game.dataMgr.nowSeasonData.townData.GetHouse((EHouseType)102);
-        var torture = house?.housePrisonData?.priTurtoreData
-            ?? throw new InvalidOperationException("当前游戏尚未开放可重随成长的监牢设施。");
-        var previous = house.selectHeroData;
-        try
-        {
-            // 原生流程会校验血肉结晶、理智和设施规则，并正确扣除旧成长属性后重算。
-            house.selectHeroData = hero;
-            var price = torture.GetTorturePrice();
-            var result = torture.TortureHero();
-            if (result != 0)
-                throw new InvalidOperationException(GetTortureError(result, price));
-            SaveNow();
-            return new EditorResponse
-            {
-                Success = true,
-                Message = $"已按游戏规则消耗 {price} 个血肉结晶，重新随机“{GetHeroName(hero)}”的每级属性成长。",
-                Snapshot = GetSnapshot()
-            };
-        }
-        finally
-        {
-            house.selectHeroData = previous;
-        }
-    }
-
     internal static EditorResponse ChangeHeroQuality(int uniqueId, int targetQuality)
     {
         var lord = GetLord();
@@ -961,38 +983,6 @@ internal static class GameEditorService
         };
     }
 
-    internal static EditorResponse InspireHero(int uniqueId)
-    {
-        var lord = GetLord();
-        var hero = FindHero(lord, uniqueId);
-        if (hero.IsAdventureBusy())
-            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
-        var house = Game.dataMgr.nowSeasonData.townData.GetHouse((EHouseType)101);
-        var inspire = house?.houseShrineData?.shrineInspireData
-            ?? throw new InvalidOperationException("当前游戏尚未开放启迪天赋的神殿设施。");
-        var previous = house.selectHeroData;
-        try
-        {
-            // 使用神殿原生接口，让数量上限、天赋池、等级和血肉结晶价格全部跟随当前版本。
-            house.selectHeroData = hero;
-            var price = inspire.GetInspirePrice();
-            var result = inspire.InspireHero();
-            if (result != 0)
-                throw new InvalidOperationException(GetInspireError(result, price));
-            SaveNow();
-            return new EditorResponse
-            {
-                Success = true,
-                Message = $"已消耗 {price} 个血肉结晶，为“{GetHeroName(hero)}”启迪一个天赋。",
-                Snapshot = GetSnapshot()
-            };
-        }
-        finally
-        {
-            house.selectHeroData = previous;
-        }
-    }
-
     private static int GetMaximumInspiredTalents()
     {
         var house = Game.dataMgr?.nowSeasonData?.townData?.GetHouse((EHouseType)101);
@@ -1000,44 +990,6 @@ internal static class GameEditorService
             ? 0
             : Math.Max(0, (int)Math.Round(house.houseAttrData.GetAttrValue((EHouseAttrType)10140, null)));
     }
-
-    private static int GetGrowthRerollPrice(HeroData hero)
-    {
-        var house = Game.dataMgr?.nowSeasonData?.townData?.GetHouse((EHouseType)102);
-        var torture = house?.housePrisonData?.priTurtoreData;
-        if (house == null || torture == null)
-            return 0;
-        var previous = house.selectHeroData;
-        try
-        {
-            house.selectHeroData = hero;
-            return Math.Max(0, torture.GetTorturePrice());
-        }
-        finally
-        {
-            house.selectHeroData = previous;
-        }
-    }
-
-    private static string GetTortureError(int result, int price) => result switch
-    {
-        1 => "游戏没有找到可操作的角色。",
-        2 => $"血肉结晶不足，本次需要 {price} 个。",
-        3 => "角色理智已经耗尽，不能继续重随成长。",
-        4 => "角色理智为 100，当前游戏规则不允许执行该操作。",
-        _ => $"游戏拒绝重新随机属性成长（错误码 {result}）。"
-    };
-
-    private static string GetInspireError(int result, int price) => result switch
-    {
-        1 => "游戏没有找到可操作的角色。",
-        3 => "该角色的启迪天赋数量已经达到当前神殿上限。",
-        4 => $"血肉结晶不足，本次需要 {price} 个。",
-        5 => "当前神殿等级尚未开放启迪功能。",
-        6 => "当前没有可启迪的其他职业天赋。",
-        7 => "游戏没有找到可用的启迪天赋位置。",
-        _ => $"游戏拒绝启迪天赋（错误码 {result}）。"
-    };
 
     private static HeroEdit CreateHeroEdit(HeroData hero, int maximumLevel)
     {
@@ -1056,7 +1008,6 @@ internal static class GameEditorService
             RemainingSkillPoints = save.talentRemainPoint,
             MaximumAlienSkills = Math.Max(0, save.GetAlienSkillCount()),
             MaximumInspiredTalents = GetMaximumInspiredTalents(),
-            GrowthRerollPrice = GetGrowthRerollPrice(hero),
             TalentSlots = BuildTalentSlots(hero)
         };
         result.GrowthAttributes = CreateGrowthAttributeRules(hero);
@@ -1284,6 +1235,17 @@ internal static class GameEditorService
                 result[(pool[i].id, affixQuality)] = pool[i];
         }
         return result;
+    }
+
+    private static TEquip ResolveGeneratedEquipmentTemplate(SaveItemData saveItem, TEquip fallback)
+    {
+        var equipmentTable = TEquip.create();
+        if (saveItem.quality == (int)EItemQualityType.myth && fallback.upMyth > 0 &&
+            equipmentTable.ContainsKey(fallback.upMyth))
+            return equipmentTable[fallback.upMyth];
+        return saveItem.id > 0 && equipmentTable.ContainsKey(saveItem.id)
+            ? equipmentTable[saveItem.id]
+            : fallback;
     }
 
     private static Dictionary<(int Id, int Quality), float> BuildEquipmentSpecialAffixMap(

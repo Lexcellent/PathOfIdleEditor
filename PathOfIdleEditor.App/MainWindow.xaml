@@ -343,7 +343,7 @@
               <DataGridTextColumn Header="天赋 ID" Binding="{Binding TalentId}" IsReadOnly="True" Width="100" />
               <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="110" />
               <DataGridTextColumn Header="名称" Binding="{Binding Name}" IsReadOnly="True" Width="*" MinWidth="260" />
-              <DataGridTextColumn Header="等级加成（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="170" />
+              <DataGridTextColumn Header="等级加成（0=无）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="170" />
               <DataGridTextColumn Header="当前上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="110" />
             </DataGrid.Columns>
           </DataGrid>
@@ -378,12 +378,10 @@
           <Grid Grid.Row="1" Margin="4,0,4,8">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="112" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Margin="0,0,0,10">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
               <StackPanel>
                 <TextBlock Text="每级属性成长" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="GrowthRuleText" Foreground="#94A3B8" Margin="0,4,0,0" TextWrapping="Wrap" />
               </StackPanel>
-              <Button Grid.Column="1" Content="使用血肉结晶重新随机" Click="RerollGrowthButton_Click" Padding="18,8" Margin="12,0,0,0" />
             </Grid>
             <DataGrid Grid.Row="1" x:Name="GrowthGrid" AutoGenerateColumns="False" CanUserAddRows="False" Margin="0,0,0,10">
               <DataGrid.Columns>
@@ -401,8 +399,6 @@
               <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
                 <Button Content="按游戏规则同步异化技能" Click="SyncAlienSkillsButton_Click" Padding="14,8" Margin="0,0,8,0"
                         ToolTip="按当前角色容量清理无效或超额异化技能，并由游戏随机补齐可用异化技能。" />
-                <Button Content="消耗血肉结晶随机启迪天赋" Click="InspireHeroButton_Click" Padding="14,8"
-                        ToolTip="调用神殿原生流程，校验设施、数量上限和材料后，随机新增一个其他职业天赋。" />
               </StackPanel>
             </Grid>
           </Grid>

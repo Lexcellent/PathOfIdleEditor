@@ -205,7 +205,6 @@ internal sealed class HeroEdit
     public int AlienSkillCount { get; set; }
     public int MaximumInspiredTalents { get; set; }
     public int InspiredTalentCount { get; set; }
-    public int GrowthRerollPrice { get; set; }
     public List<GrowthAttributeEdit> GrowthAttributes { get; set; } = new();
     public List<TalentSlotEdit> TalentSlots { get; set; } = new();
 }

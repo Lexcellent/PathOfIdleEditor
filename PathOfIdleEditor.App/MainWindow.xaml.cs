@@ -531,13 +531,10 @@ public partial class MainWindow : Window
         GrowthGrid.ItemsSource = hero.GrowthAttributes;
         TalentsGrid.ItemsSource = hero.TalentSlots;
         var growthTotal = hero.GrowthAttributes.Sum(item => item.Value);
-        GrowthRuleText.Text = $"可直接编辑；单项范围与总成长读取自当前职业、品级的游戏规则。当前总和 {growthTotal:0.###}；原生重随价格 {hero.GrowthRerollPrice} 个血肉结晶。";
-        ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（游戏当前规则动态计算）；启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents}（神殿属性动态计算）。";
+        GrowthRuleText.Text = $"可直接编辑且不消耗血肉结晶；单项范围与总成长读取自当前职业、品级的游戏规则。当前总和 {growthTotal:0.###}。";
+        ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（游戏当前规则动态计算）；已有启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents} 可编辑等级且不消耗血肉结晶。新增启迪必须消耗结晶，因此编辑器不提供该操作。";
         SetStatus($"已选择“{hero.Name}”；角色合法等级为 1-{hero.MaximumLevel}。", true);
     }
-
-    private async void RerollGrowthButton_Click(object sender, RoutedEventArgs e) =>
-        await RunHeroActionAsync("rerollHeroGrowth");
 
     private async void ChangeHeroQualityButton_Click(object sender, RoutedEventArgs e)
     {
@@ -554,9 +551,6 @@ public partial class MainWindow : Window
 
     private async void SyncAlienSkillsButton_Click(object sender, RoutedEventArgs e) =>
         await RunHeroActionAsync("syncAlienSkills");
-
-    private async void InspireHeroButton_Click(object sender, RoutedEventArgs e) =>
-        await RunHeroActionAsync("inspireHero");
 
     private async Task RunHeroActionAsync(string action)
     {
