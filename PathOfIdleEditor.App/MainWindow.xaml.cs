@@ -17,6 +17,8 @@ public partial class MainWindow : Window
     private EditorSnapshot? _snapshot;
     private EquipmentRules? _equipmentRules;
     private ICollectionView? _equipmentView;
+    private ICollectionView? _inventoryTemplateView;
+    private ICollectionView? _inventoryView;
     private bool _loadingControls;
     private int _rulesRequestVersion;
 
@@ -43,13 +45,108 @@ public partial class MainWindow : Window
             EquipmentLevelCombo.ItemsSource = _snapshot.EquipmentLevels;
             BlessingLevelCombo.ItemsSource = _snapshot.BlessingLevels;
             HeroCombo.ItemsSource = _snapshot.Heroes;
+            BindInventory(_snapshot.Inventory);
             EquipmentTemplateCombo.SelectedIndex = _snapshot.EquipmentTemplates.Count > 0 ? 0 : -1;
             EquipmentLevelCombo.SelectedIndex = _snapshot.EquipmentLevels.Count > 0 ? 0 : -1;
             HeroCombo.SelectedIndex = _snapshot.Heroes.Count > 0 ? 0 : -1;
             RefreshQualityOptions();
             _loadingControls = false;
             await LoadEquipmentRulesAsync();
-            return $"已读取当前游戏：{_snapshot.EquipmentTemplates.Count} 个装备模板，{_snapshot.Heroes.Count} 名角色。";
+            return $"已读取当前游戏：{_snapshot.EquipmentTemplates.Count} 个装备模板，{_snapshot.Inventory.BagItems.Count} 组背包物品，{_snapshot.Heroes.Count} 名角色。";
+        });
+    }
+
+    private void BindInventory(InventorySnapshot inventory)
+    {
+        if (_snapshot != null)
+            _snapshot.Inventory = inventory;
+        _inventoryTemplateView = CollectionViewSource.GetDefaultView(inventory.AvailableItems);
+        _inventoryView = CollectionViewSource.GetDefaultView(inventory.BagItems);
+        InventoryTemplateCombo.ItemsSource = _inventoryTemplateView;
+        InventoryGrid.ItemsSource = _inventoryView;
+        InventoryTemplateSearchText_TextChanged(InventoryTemplateSearchText, new TextChangedEventArgs(TextBox.TextChangedEvent, UndoAction.None));
+        InventorySearchText_TextChanged(InventorySearchText, new TextChangedEventArgs(TextBox.TextChangedEvent, UndoAction.None));
+        if (InventoryTemplateCombo.SelectedItem == null && !_inventoryTemplateView.IsEmpty)
+            InventoryTemplateCombo.SelectedIndex = 0;
+    }
+
+    private void InventoryTemplateSearchText_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_inventoryTemplateView == null)
+            return;
+        var keyword = InventoryTemplateSearchText.Text.Trim();
+        _inventoryTemplateView.Filter = item =>
+        {
+            if (item is not InventoryTemplate template || string.IsNullOrWhiteSpace(keyword))
+                return true;
+            return template.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
+                   template.TypeName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
+                   template.Id.ToString(CultureInfo.InvariantCulture).Contains(keyword, StringComparison.OrdinalIgnoreCase);
+        };
+        _inventoryTemplateView.Refresh();
+        if (InventoryTemplateCombo.SelectedItem == null && !_inventoryTemplateView.IsEmpty)
+            InventoryTemplateCombo.SelectedIndex = 0;
+    }
+
+    private void InventorySearchText_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_inventoryView == null)
+            return;
+        var keyword = InventorySearchText.Text.Trim();
+        _inventoryView.Filter = item =>
+        {
+            if (item is not InventoryItemEdit inventoryItem || string.IsNullOrWhiteSpace(keyword))
+                return true;
+            return inventoryItem.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
+                   inventoryItem.TypeName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
+                   inventoryItem.Id.ToString(CultureInfo.InvariantCulture).Contains(keyword, StringComparison.OrdinalIgnoreCase);
+        };
+        _inventoryView.Refresh();
+    }
+
+    private async void AddInventoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunAsync(async () =>
+        {
+            var template = InventoryTemplateCombo.SelectedItem as InventoryTemplate
+                ?? throw new InvalidOperationException("请选择要增加的物品。");
+            var count = ParseInt(AddInventoryCountText.Text, "增加数量");
+            if (count <= 0)
+                throw new InvalidOperationException("增加数量必须大于 0。");
+            var response = await BridgeClient.SendAsync(new EditorRequest
+            {
+                Action = "addInventoryItem",
+                InventoryAdd = new InventoryAddEdit
+                {
+                    Type = template.Type, Id = template.Id, Quality = template.Quality,
+                    Level = template.Level, Count = count
+                }
+            });
+            EnsureSuccess(response);
+            BindInventory(response.Inventory ?? throw new InvalidDataException("桥接没有返回最新背包数据。"));
+            return response.Message;
+        });
+    }
+
+    private async void ApplyInventoryCountButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunAsync(async () =>
+        {
+            CommitGrid(InventoryGrid);
+            if (HasValidationError(InventoryGrid))
+                throw new InvalidOperationException("物品数量只能填写大于等于 0 的整数。");
+            var item = InventoryGrid.SelectedItem as InventoryItemEdit
+                ?? throw new InvalidOperationException("请先选择要修改的背包物品。");
+            if (item.Count < 0)
+                throw new InvalidOperationException("物品数量不能小于 0；填 0 可以删除该堆叠。");
+            var response = await BridgeClient.SendAsync(new EditorRequest
+            {
+                Action = "updateInventoryItem",
+                InventoryItem = item
+            });
+            EnsureSuccess(response);
+            BindInventory(response.Inventory ?? throw new InvalidDataException("桥接没有返回最新背包数据。"));
+            return response.Message;
         });
     }
 

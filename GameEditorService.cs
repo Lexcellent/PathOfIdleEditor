@@ -56,8 +56,195 @@ internal static class GameEditorService
             if (hero?.saveHeroData != null)
                 snapshot.Heroes.Add(CreateHeroEdit(hero, maximumHeroLevel));
         }
+        snapshot.Inventory = GetInventorySnapshot(lord);
         return snapshot;
     }
+
+    internal static InventorySnapshot GetInventorySnapshot() => GetInventorySnapshot(GetLord());
+
+    private static InventorySnapshot GetInventorySnapshot(LordData lord)
+    {
+        var snapshot = new InventorySnapshot();
+
+        // 可添加物品完全来自当前游戏表；装备由装备生成器处理，不在这里重复暴露。
+        foreach (var pair in TRes.create())
+            if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
+            {
+                Type = (int)EItemType.res, TypeName = GetItemTypeName(EItemType.res), Id = pair.Key,
+                Name = pair.Value.name ?? $"资源 {pair.Key}", Quality = pair.Value.quality
+            });
+        foreach (var pair in TTool.create())
+            if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
+            {
+                Type = (int)EItemType.tool, TypeName = GetItemTypeName(EItemType.tool), Id = pair.Key,
+                Name = pair.Value.name ?? $"工具 {pair.Key}", Quality = pair.Value.quality, Level = 1
+            });
+        foreach (var pair in TRune.create())
+            if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
+            {
+                Type = (int)EItemType.rune, TypeName = GetItemTypeName(EItemType.rune), Id = pair.Key,
+                Name = pair.Value.name ?? $"符文 {pair.Key}", Quality = pair.Value.baseQuality
+            });
+        foreach (var pair in TCurio.create())
+            if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
+            {
+                Type = (int)EItemType.curio, TypeName = GetItemTypeName(EItemType.curio), Id = pair.Key,
+                Name = pair.Value.name ?? $"奇物 {pair.Key}", Quality = pair.Value.quality
+            });
+        snapshot.AvailableItems.Sort((a, b) =>
+        {
+            var typeCompare = a.Type.CompareTo(b.Type);
+            return typeCompare != 0 ? typeCompare : a.Id.CompareTo(b.Id);
+        });
+
+        // 普通背包、符文背包和奇物背包是三套原生容器；分别读取可避免漏项。
+        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.res));
+        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.rune));
+        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.curio));
+        snapshot.BagItems.Sort((a, b) =>
+        {
+            var typeCompare = a.Type.CompareTo(b.Type);
+            return typeCompare != 0 ? typeCompare : a.FieldIndex.CompareTo(b.FieldIndex);
+        });
+        return snapshot;
+    }
+
+    internal static EditorResponse UpdateInventoryItem(InventoryItemEdit edit)
+    {
+        if (edit.Count < 0)
+            throw new InvalidOperationException("物品数量不能小于 0。");
+        var lord = GetLord();
+        var type = (EItemType)edit.Type;
+        if (type == EItemType.equip || !IsEditableItemType(type))
+            throw new InvalidOperationException("该物品类型不能在物品编辑器中修改。");
+
+        var fields = lord.lordBagData.GetFieldList(type);
+        ItemFieldData? target = null;
+        for (var i = 0; fields != null && i < fields.Count; i++)
+        {
+            var field = fields[i];
+            var save = field?.itemData?.saveItemData;
+            if (field?.saveItemFieldData?.index == edit.FieldIndex && save != null &&
+                save.type == type && save.id == edit.Id && save.quality == edit.Quality && save.level == edit.Level)
+            {
+                target = field;
+                break;
+            }
+        }
+        if (target?.itemData?.saveItemData == null)
+            throw new InvalidOperationException("背包物品已经发生变化，请刷新后重试。");
+
+        var oldCount = target.itemData.saveItemData.count;
+        if (edit.Count > oldCount)
+            lord.lordBagData.StackItem(target, edit.Count - oldCount);
+        else if (edit.Count < oldCount)
+            lord.lordBagData.ReduceItem(target, oldCount - edit.Count);
+        SaveNow();
+        return new EditorResponse
+        {
+            Success = true,
+            Message = edit.Count == 0 ? $"已从背包删除“{edit.Name}”。" : $"已把“{edit.Name}”的数量修改为 {edit.Count}。",
+            Inventory = GetInventorySnapshot(lord)
+        };
+    }
+
+    internal static EditorResponse AddInventoryItem(InventoryAddEdit edit)
+    {
+        if (edit.Count <= 0)
+            throw new InvalidOperationException("增加数量必须大于 0。");
+        var lord = GetLord();
+        var type = (EItemType)edit.Type;
+        SaveItemData? saveItem;
+        string name;
+        switch (type)
+        {
+            case EItemType.res:
+            {
+                var table = TRes.create();
+                if (!table.ContainsKey(edit.Id)) throw new InvalidOperationException($"资源 {edit.Id} 不存在于当前游戏表中。");
+                name = table[edit.Id].name;
+                saveItem = SaveItemData.CreateRes(edit.Id, edit.Count);
+                break;
+            }
+            case EItemType.tool:
+            {
+                var table = TTool.create();
+                if (!table.ContainsKey(edit.Id)) throw new InvalidOperationException($"工具 {edit.Id} 不存在于当前游戏表中。");
+                name = table[edit.Id].name;
+                saveItem = SaveItemData.CreateTool(edit.Id, edit.Count, Math.Max(1, edit.Level));
+                break;
+            }
+            case EItemType.rune:
+            {
+                var table = TRune.create();
+                if (!table.ContainsKey(edit.Id)) throw new InvalidOperationException($"符文 {edit.Id} 不存在于当前游戏表中。");
+                if (!TRuneQuality.create().ContainsKey(edit.Quality))
+                    throw new InvalidOperationException($"符文品质 {edit.Quality} 不存在于当前游戏规则表中。");
+                name = table[edit.Id].name;
+                saveItem = SaveItemData.CreateRune(edit.Id, edit.Quality, edit.Count);
+                break;
+            }
+            case EItemType.curio:
+            {
+                var table = TCurio.create();
+                if (!table.ContainsKey(edit.Id)) throw new InvalidOperationException($"奇物 {edit.Id} 不存在于当前游戏表中。");
+                name = table[edit.Id].name;
+                saveItem = SaveItemData.CreateCurio(edit.Id, edit.Count);
+                break;
+            }
+            default:
+                throw new InvalidOperationException("该物品类型不能通过物品编辑器增加。");
+        }
+        if (saveItem == null)
+            throw new InvalidOperationException("游戏原生物品生成器拒绝了当前物品。");
+        var item = ItemData.Create(saveItem, EItemPosType.bag, 1)
+            ?? throw new InvalidOperationException("游戏创建运行时物品数据失败。");
+        if (!lord.lordBagData.addItemToBag(item))
+            throw new InvalidOperationException("背包空间不足，物品没有加入存档。");
+        SaveNow();
+        return new EditorResponse
+        {
+            Success = true,
+            Message = $"已增加“{name}”×{edit.Count}。",
+            Inventory = GetInventorySnapshot(lord)
+        };
+    }
+
+    private static void AddInventoryFields(
+        InventorySnapshot snapshot,
+        Il2CppSystem.Collections.Generic.List<ItemFieldData> fields)
+    {
+        for (var i = 0; fields != null && i < fields.Count; i++)
+        {
+            var field = fields[i];
+            var save = field?.itemData?.saveItemData;
+            if (save == null || save.count <= 0 || save.type == EItemType.equip || !IsEditableItemType(save.type))
+                continue;
+            snapshot.BagItems.Add(new InventoryItemEdit
+            {
+                FieldIndex = field.saveItemFieldData.index,
+                Type = (int)save.type,
+                TypeName = GetItemTypeName(save.type),
+                Id = save.id,
+                Name = field.itemData.GetName() ?? $"物品 {save.id}",
+                Quality = save.quality,
+                Level = save.level,
+                Count = save.count
+            });
+        }
+    }
+
+    private static bool IsEditableItemType(EItemType type) =>
+        type == EItemType.res || type == EItemType.tool || type == EItemType.rune || type == EItemType.curio;
+
+    private static string GetItemTypeName(EItemType type) => type switch
+    {
+        EItemType.res => "资源",
+        EItemType.tool => "工具",
+        EItemType.rune => "符文",
+        EItemType.curio => "奇物",
+        _ => $"类型 {(int)type}"
+    };
 
     internal static EquipmentRules GetEquipmentRules(EquipmentEdit edit)
     {

@@ -165,6 +165,64 @@
         </ScrollViewer>
       </TabItem>
 
+      <TabItem Header="物品编辑器">
+        <Grid Margin="0,12,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Border Style="{StaticResource Card}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="110" />
+                <ColumnDefinition Width="140" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <TextBlock Grid.ColumnSpan="4" Text="增加物品到背包" FontSize="18" FontWeight="SemiBold" Margin="4,0,4,10" />
+              <Label Grid.Row="1" Content="搜索名称、ID 或类别" />
+              <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" x:Name="InventoryTemplateSearchText" TextChanged="InventoryTemplateSearchText_TextChanged" />
+              <Label Grid.Row="2" Content="物品" />
+              <ComboBox Grid.Row="2" Grid.Column="1" x:Name="InventoryTemplateCombo" DisplayMemberPath="Display" />
+              <Label Grid.Row="2" Grid.Column="2" Content="增加数量" />
+              <TextBox Grid.Row="2" Grid.Column="3" x:Name="AddInventoryCountText" Text="1" />
+            </Grid>
+          </Border>
+
+          <Grid Grid.Row="1" Margin="4,0,4,8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <TextBlock Text="当前背包物品" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" x:Name="InventorySearchText" TextChanged="InventorySearchText_TextChanged"
+                     ToolTip="搜索名称、ID 或类别" Margin="18,0,4,0" />
+          </Grid>
+          <DataGrid Grid.Row="2" x:Name="InventoryGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"
+                    EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                    RowHeight="38" ColumnHeaderHeight="40">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="槽位" Binding="{Binding FieldIndex}" IsReadOnly="True" Width="75" />
+              <DataGridTextColumn Header="类别" Binding="{Binding TypeName}" IsReadOnly="True" Width="90" />
+              <DataGridTextColumn Header="物品 ID" Binding="{Binding Id}" IsReadOnly="True" Width="100" />
+              <DataGridTextColumn Header="名称" Binding="{Binding Name}" IsReadOnly="True" Width="*" MinWidth="220" />
+              <DataGridTextColumn Header="品质" Binding="{Binding Quality}" IsReadOnly="True" Width="80" />
+              <DataGridTextColumn Header="等级" Binding="{Binding Level}" IsReadOnly="True" Width="80" />
+              <DataGridTextColumn Header="数量（可编辑）" Binding="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Width="140" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <Grid Grid.Row="3" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Button Content="增加选中物品到背包" Click="AddInventoryButton_Click" Height="46" FontSize="16" />
+            <Button Grid.Column="1" Content="应用选中物品数量（0 表示删除）" Click="ApplyInventoryCountButton_Click" Height="46" FontSize="16" />
+          </Grid>
+        </Grid>
+      </TabItem>
+
       <TabItem Header="角色编辑器">
         <Grid Margin="0,12,0,0">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>

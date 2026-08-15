@@ -8,6 +8,8 @@ internal sealed class EditorRequest
     public string Action { get; set; } = "";
     public EquipmentEdit? Equipment { get; set; }
     public HeroEdit? Hero { get; set; }
+    public InventoryItemEdit? InventoryItem { get; set; }
+    public InventoryAddEdit? InventoryAdd { get; set; }
 }
 
 internal sealed class EditorResponse
@@ -16,6 +18,7 @@ internal sealed class EditorResponse
     public string Message { get; set; } = "";
     public EditorSnapshot? Snapshot { get; set; }
     public EquipmentRules? EquipmentRules { get; set; }
+    public InventorySnapshot? Inventory { get; set; }
 }
 
 internal sealed class EditorSnapshot
@@ -25,6 +28,44 @@ internal sealed class EditorSnapshot
     public List<int> EquipmentLevels { get; set; } = new();
     public List<int> BlessingLevels { get; set; } = new();
     public List<HeroEdit> Heroes { get; set; } = new();
+    public InventorySnapshot Inventory { get; set; } = new();
+}
+
+internal sealed class InventorySnapshot
+{
+    public List<InventoryTemplate> AvailableItems { get; set; } = new();
+    public List<InventoryItemEdit> BagItems { get; set; } = new();
+}
+
+internal sealed class InventoryTemplate
+{
+    public int Type { get; set; }
+    public string TypeName { get; set; } = "";
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public int Quality { get; set; }
+    public int Level { get; set; }
+}
+
+internal sealed class InventoryItemEdit
+{
+    public int FieldIndex { get; set; }
+    public int Type { get; set; }
+    public string TypeName { get; set; } = "";
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public int Quality { get; set; }
+    public int Level { get; set; }
+    public int Count { get; set; }
+}
+
+internal sealed class InventoryAddEdit
+{
+    public int Type { get; set; }
+    public int Id { get; set; }
+    public int Quality { get; set; }
+    public int Level { get; set; }
+    public int Count { get; set; }
 }
 
 internal sealed class RuleOption
