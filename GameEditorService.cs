@@ -57,7 +57,173 @@ internal static class GameEditorService
                 snapshot.Heroes.Add(CreateHeroEdit(hero, maximumHeroLevel));
         }
         snapshot.Inventory = GetInventorySnapshot(lord);
+        snapshot.Lord = CreateLordEdit(lord);
         return snapshot;
+    }
+
+    private static LordEdit CreateLordEdit(LordData lord)
+    {
+        var lordLevels = TLordLevel.create();
+        var jobLevels = TJobLevel.create();
+        var maximumLordLevel = GetMaximumTableKey(lordLevels, "领主等级");
+        var maximumJobLevel = GetMaximumTableKey(jobLevels, "魔偶等级");
+        var result = new LordEdit
+        {
+            Level = lord.saveLordData.level,
+            MaximumLevel = maximumLordLevel
+        };
+        foreach (var pair in jobLevels)
+        {
+            if (pair.Value == null)
+                continue;
+            result.JobLevelRules.Add(new LordJobLevelRule
+            {
+                Level = pair.Key,
+                RequiredLordLevel = GetRequiredLordLevel(pair.Key, jobLevels),
+                TotalAttributePoints = pair.Value.totalAttr,
+                MaximumTalentBonusLevel = pair.Value.masteryMaxLevel
+            });
+        }
+        result.JobLevelRules.Sort((a, b) => a.Level.CompareTo(b.Level));
+        var talentTable = TTalent.create();
+        foreach (var pair in lord.jobDic)
+        {
+            var runtime = pair.Value;
+            var save = runtime?.saveLordJobData;
+            if (runtime == null || save == null)
+                continue;
+            var levelRule = jobLevels.ContainsKey(save.level) ? jobLevels[save.level] : null;
+            var edit = new LordJobEdit
+            {
+                JobId = save.jobId,
+                JobName = runtime.tHeroJobData?.name ?? $"职业 {save.jobId}",
+                Level = save.level,
+                MaximumLevel = maximumJobLevel,
+                RequiredLordLevel = GetRequiredLordLevel(save.level, jobLevels),
+                TotalAttributePoints = levelRule?.totalAttr ?? 0,
+                Strength = ReadLordJobAttribute(save, EAttrType.STR),
+                Dexterity = ReadLordJobAttribute(save, EAttrType.DEX),
+                Intelligence = ReadLordJobAttribute(save, EAttrType.INT)
+            };
+            foreach (var talentPair in save.talentDic)
+            {
+                if (!talentTable.ContainsKey(talentPair.Key))
+                    continue;
+                var talent = talentTable[talentPair.Key];
+                edit.TalentBonuses.Add(new LordTalentBonusEdit
+                {
+                    TalentId = talentPair.Key,
+                    Kind = talent.skillId > 0 ? "技能" : "天赋/专精",
+                    Name = GetTalentDisplayName(talent),
+                    Level = talentPair.Value,
+                    MaximumLevel = Math.Max(1, save.GetMasteryMaxLevel())
+                });
+            }
+            edit.TalentBonuses.Sort((a, b) => a.TalentId.CompareTo(b.TalentId));
+            result.Jobs.Add(edit);
+        }
+        result.Jobs.Sort((a, b) => a.JobId.CompareTo(b.JobId));
+        return result;
+    }
+
+    internal static EditorResponse UpdateLord(LordEdit edit)
+    {
+        var lord = GetLord();
+        var lordLevels = TLordLevel.create();
+        var jobLevels = TJobLevel.create();
+        if (!lordLevels.ContainsKey(edit.Level))
+            throw new InvalidOperationException($"领主等级 {edit.Level} 不存在于当前游戏等级表中。");
+
+        // 先完整校验全部职业，防止其中一行失败后留下半完成存档。
+        var validated = new List<(LordJobData Runtime, LordJobEdit Request, TJobLevel Rule)>();
+        var seenJobs = new HashSet<int>();
+        foreach (var request in edit.Jobs)
+        {
+            if (!seenJobs.Add(request.JobId))
+                throw new InvalidOperationException($"职业 {request.JobId} 重复出现，请刷新后重试。");
+            if (!lord.jobDic.ContainsKey(request.JobId))
+                throw new InvalidOperationException($"职业 {request.JobId} 已不存在，请刷新游戏数据。");
+            if (!jobLevels.ContainsKey(request.Level))
+                throw new InvalidOperationException($"“{request.JobName}”的魔偶等级 {request.Level} 不存在于当前游戏等级表中。");
+            var requiredLordLevel = GetRequiredLordLevel(request.Level, jobLevels);
+            if (edit.Level < requiredLordLevel)
+                throw new InvalidOperationException($"“{request.JobName}”升到 {request.Level} 级要求领主至少 {requiredLordLevel} 级。");
+            if (request.Strength < 0 || request.Dexterity < 0 || request.Intelligence < 0)
+                throw new InvalidOperationException($"“{request.JobName}”的属性加成不能小于 0。");
+            var rule = jobLevels[request.Level];
+            var attributeTotal = request.Strength + request.Dexterity + request.Intelligence;
+            if (attributeTotal != rule.totalAttr)
+                throw new InvalidOperationException($"“{request.JobName}”{request.Level} 级的力量、敏捷、智力总和必须为 {rule.totalAttr}，当前为 {attributeTotal}。");
+
+            var runtime = lord.jobDic[request.JobId];
+            var currentTalentIds = new HashSet<int>();
+            foreach (var pair in runtime.saveLordJobData.talentDic) currentTalentIds.Add(pair.Key);
+            if (request.TalentBonuses.Count != currentTalentIds.Count)
+                throw new InvalidOperationException($"“{request.JobName}”的天赋加成列表已经变化，请刷新后重试。");
+            var requestedTalentIds = new HashSet<int>();
+            foreach (var talent in request.TalentBonuses)
+            {
+                if (!requestedTalentIds.Add(talent.TalentId) || !currentTalentIds.Contains(talent.TalentId))
+                    throw new InvalidOperationException($"“{request.JobName}”包含无效的天赋加成 {talent.TalentId}。");
+                if (talent.Level < 1 || talent.Level > rule.masteryMaxLevel)
+                    throw new InvalidOperationException($"“{request.JobName}”的“{talent.Name}”等级加成合法范围为 1-{rule.masteryMaxLevel}。");
+            }
+            validated.Add((runtime, request, rule));
+        }
+        if (validated.Count != lord.jobDic.Count)
+            throw new InvalidOperationException("职业魔偶列表不完整，请刷新游戏数据后重试。");
+
+        lord.saveLordData.level = edit.Level;
+        lord.saveLordData.exp = 0;
+        lord.tLordLevelData = lordLevels[edit.Level];
+        lord.CreateOfflineResList();
+        foreach (var entry in validated)
+        {
+            var runtime = entry.Runtime;
+            var save = runtime.saveLordJobData;
+            runtime.RemoveJobAttrUp();
+            save.level = entry.Request.Level;
+            runtime.tJobLevelData = entry.Rule;
+            save.attrUpDic[(int)EAttrType.STR] = entry.Request.Strength;
+            save.attrUpDic[(int)EAttrType.DEX] = entry.Request.Dexterity;
+            save.attrUpDic[(int)EAttrType.INT] = entry.Request.Intelligence;
+            foreach (var talent in entry.Request.TalentBonuses)
+                save.talentDic[talent.TalentId] = talent.Level;
+            // 原生初始化会重建显示列表、技能加成和等级锁，再把新属性加成应用到对应职业角色。
+            runtime.Init();
+            runtime.AddJobAttrUp();
+        }
+        SaveNow();
+        return new EditorResponse
+        {
+            Success = true,
+            Message = $"已保存领主等级 {edit.Level} 及 {validated.Count} 个职业魔偶的数据。",
+            Lord = CreateLordEdit(lord)
+        };
+    }
+
+    private static int GetRequiredLordLevel(
+        int jobLevel,
+        Il2CppSystem.Collections.Generic.Dictionary<int, TJobLevel> jobLevels)
+    {
+        if (jobLevel <= 1)
+            return 1;
+        return jobLevels.ContainsKey(jobLevel - 1) ? Math.Max(1, jobLevels[jobLevel - 1].lordLevel) : 1;
+    }
+
+    private static int GetMaximumTableKey<T>(Il2CppSystem.Collections.Generic.Dictionary<int, T> table, string tableName)
+    {
+        var maximum = 0;
+        foreach (var pair in table) maximum = Math.Max(maximum, pair.Key);
+        if (maximum <= 0)
+            throw new InvalidOperationException($"当前游戏的{tableName}表为空。");
+        return maximum;
+    }
+
+    private static int ReadLordJobAttribute(SaveLordJobData save, EAttrType type)
+    {
+        var key = (int)type;
+        return save.attrUpDic != null && save.attrUpDic.ContainsKey(key) ? save.attrUpDic[key] : 0;
     }
 
     internal static InventorySnapshot GetInventorySnapshot() => GetInventorySnapshot(GetLord());

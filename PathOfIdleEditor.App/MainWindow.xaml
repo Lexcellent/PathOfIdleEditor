@@ -289,6 +289,55 @@
         </Grid>
       </TabItem>
 
+      <TabItem Header="崇拜者 / 领主">
+        <Grid Margin="0,12,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="2*" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="*" /><RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Border Style="{StaticResource Card}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Label Content="崇拜者 / 领主等级" />
+              <TextBox Grid.Column="1" x:Name="LordLevelText" />
+              <TextBlock Grid.Column="2" x:Name="LordLevelRuleText" Foreground="#94A3B8" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" />
+            </Grid>
+          </Border>
+
+          <DataGrid Grid.Row="1" x:Name="LordJobsGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"
+                    SelectionChanged="LordJobsGrid_SelectionChanged" CellEditEnding="LordJobsGrid_CellEditEnding" Margin="0,0,0,10"
+                    EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="职业 ID" Binding="{Binding JobId}" IsReadOnly="True" Width="80" />
+              <DataGridTextColumn Header="职业魔偶" Binding="{Binding JobName}" IsReadOnly="True" Width="*" MinWidth="150" />
+              <DataGridTextColumn Header="等级" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="85" />
+              <DataGridTextColumn Header="等级上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="90" />
+              <DataGridTextColumn Header="领主要求" Binding="{Binding RequiredLordLevel}" IsReadOnly="True" Width="90" />
+              <DataGridTextColumn Header="属性总点" Binding="{Binding TotalAttributePoints}" IsReadOnly="True" Width="90" />
+              <DataGridTextColumn Header="力量加成" Binding="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+              <DataGridTextColumn Header="敏捷加成" Binding="{Binding Dexterity, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+              <DataGridTextColumn Header="智力加成" Binding="{Binding Intelligence, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <StackPanel Grid.Row="2" Margin="4,0,4,8">
+            <TextBlock Text="选中职业的天赋 / 技能等级加成" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock x:Name="LordTalentRuleText" Foreground="#94A3B8" Margin="0,4,0,0" TextWrapping="Wrap" />
+          </StackPanel>
+          <DataGrid Grid.Row="3" x:Name="LordTalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                    EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="天赋 ID" Binding="{Binding TalentId}" IsReadOnly="True" Width="100" />
+              <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="110" />
+              <DataGridTextColumn Header="名称" Binding="{Binding Name}" IsReadOnly="True" Width="*" MinWidth="260" />
+              <DataGridTextColumn Header="等级加成（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="170" />
+              <DataGridTextColumn Header="当前上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="110" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <Button Grid.Row="4" Content="应用领主和全部职业魔偶修改" Click="ApplyLordButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
+        </Grid>
+      </TabItem>
+
       <TabItem Header="角色编辑器">
         <Grid Margin="0,12,0,0">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>

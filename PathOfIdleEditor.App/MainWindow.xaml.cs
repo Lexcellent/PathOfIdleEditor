@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -46,6 +47,7 @@ public partial class MainWindow : Window
             BlessingLevelCombo.ItemsSource = _snapshot.BlessingLevels;
             HeroCombo.ItemsSource = _snapshot.Heroes;
             BindInventory(_snapshot.Inventory);
+            BindLord(_snapshot.Lord);
             EquipmentTemplateCombo.SelectedIndex = _snapshot.EquipmentTemplates.Count > 0 ? 0 : -1;
             EquipmentLevelCombo.SelectedIndex = _snapshot.EquipmentLevels.Count > 0 ? 0 : -1;
             HeroCombo.SelectedIndex = _snapshot.Heroes.Count > 0 ? 0 : -1;
@@ -95,6 +97,91 @@ public partial class MainWindow : Window
             return;
         RefreshInventoryFilters();
         EnsureInventoryTemplateSelection();
+    }
+
+    private void BindLord(LordEdit lord)
+    {
+        if (_snapshot != null)
+            _snapshot.Lord = lord;
+        LordLevelText.Text = lord.Level.ToString(CultureInfo.InvariantCulture);
+        LordLevelRuleText.Text = $"合法等级读取自当前游戏 TLordLevel 表：1-{lord.MaximumLevel}。";
+        LordJobsGrid.ItemsSource = lord.Jobs;
+        LordJobsGrid.SelectedIndex = lord.Jobs.Count > 0 ? 0 : -1;
+    }
+
+    private void LordJobsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LordJobsGrid.SelectedItem is not LordJobEdit job)
+        {
+            LordTalentsGrid.ItemsSource = null;
+            LordTalentRuleText.Text = "请选择一个职业魔偶。";
+            return;
+        }
+        LordTalentsGrid.ItemsSource = job.TalentBonuses;
+        LordTalentRuleText.Text = $"{job.JobName}：魔偶 {job.Level} 级要求领主至少 {job.RequiredLordLevel} 级；三项属性总和必须为 {job.TotalAttributePoints}。";
+    }
+
+    private void LordJobsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        // 等单元格把新等级写回对象后，再刷新该等级对应的原生规则显示。
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (e.Row.Item is LordJobEdit job)
+            {
+                SyncLordJobRule(job);
+                LordJobsGrid.Items.Refresh();
+                LordTalentsGrid.Items.Refresh();
+                if (ReferenceEquals(LordJobsGrid.SelectedItem, job))
+                    LordJobsGrid_SelectionChanged(LordJobsGrid, new SelectionChangedEventArgs(Selector.SelectionChangedEvent, new List<object>(), new List<object>()));
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    private void SyncLordJobRule(LordJobEdit job)
+    {
+        var rule = _snapshot?.Lord.JobLevelRules.FirstOrDefault(item => item.Level == job.Level);
+        if (rule == null)
+            return;
+        job.RequiredLordLevel = rule.RequiredLordLevel;
+        job.TotalAttributePoints = rule.TotalAttributePoints;
+        foreach (var talent in job.TalentBonuses)
+        {
+            talent.MaximumLevel = rule.MaximumTalentBonusLevel;
+            if (talent.Level > talent.MaximumLevel)
+                talent.Level = talent.MaximumLevel;
+        }
+    }
+
+    private async void ApplyLordButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunAsync(async () =>
+        {
+            CommitGrid(LordJobsGrid);
+            CommitGrid(LordTalentsGrid);
+            var lord = _snapshot?.Lord ?? throw new InvalidOperationException("请先连接并读取游戏数据。");
+            var level = ParseInt(LordLevelText.Text, "领主等级");
+            if (level < 1 || level > lord.MaximumLevel)
+                throw new InvalidOperationException($"当前游戏表允许的领主等级为 1-{lord.MaximumLevel}。");
+            lord.Level = level;
+            foreach (var job in lord.Jobs)
+            {
+                SyncLordJobRule(job);
+                if (lord.JobLevelRules.All(item => item.Level != job.Level))
+                    throw new InvalidOperationException($"“{job.JobName}”的魔偶等级 {job.Level} 不存在于当前游戏表中。");
+                if (level < job.RequiredLordLevel)
+                    throw new InvalidOperationException($"“{job.JobName}”{job.Level} 级要求领主至少 {job.RequiredLordLevel} 级。");
+                var total = job.Strength + job.Dexterity + job.Intelligence;
+                if (job.Strength < 0 || job.Dexterity < 0 || job.Intelligence < 0 || total != job.TotalAttributePoints)
+                    throw new InvalidOperationException($"“{job.JobName}”的三项属性必须非负且总和为 {job.TotalAttributePoints}，当前为 {total}。");
+                foreach (var talent in job.TalentBonuses)
+                    if (talent.Level < 1 || talent.Level > talent.MaximumLevel)
+                        throw new InvalidOperationException($"“{talent.Name}”的等级加成合法范围为 1-{talent.MaximumLevel}。");
+            }
+            var response = await BridgeClient.SendAsync(new EditorRequest { Action = "updateLord", Lord = lord });
+            EnsureSuccess(response);
+            BindLord(response.Lord ?? throw new InvalidDataException("桥接没有返回更新后的领主数据。"));
+            return response.Message;
+        });
     }
 
     private void InventorySearchText_TextChanged(object sender, TextChangedEventArgs e)

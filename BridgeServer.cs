@@ -61,6 +61,7 @@ internal static class BridgeServer
         "rerollHeroGrowth" when request.Hero != null => GameEditorService.RerollHeroGrowth(request.Hero.UniqueId),
         "syncAlienSkills" when request.Hero != null => GameEditorService.SyncAlienSkills(request.Hero.UniqueId),
         "inspireHero" when request.Hero != null => GameEditorService.InspireHero(request.Hero.UniqueId),
+        "updateLord" when request.Lord != null => GameEditorService.UpdateLord(request.Lord),
         "inventory" => new EditorResponse { Success = true, Message = "已刷新背包物品。", Inventory = GameEditorService.GetInventorySnapshot() },
         "updateInventoryItem" when request.InventoryItem != null => GameEditorService.UpdateInventoryItem(request.InventoryItem),
         "addInventoryItem" when request.InventoryAdd != null => GameEditorService.AddInventoryItem(request.InventoryAdd),

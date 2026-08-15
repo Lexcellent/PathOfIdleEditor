@@ -10,6 +10,7 @@ public sealed class EditorRequest
     public HeroEdit? Hero { get; set; }
     public InventoryItemEdit? InventoryItem { get; set; }
     public InventoryAddEdit? InventoryAdd { get; set; }
+    public LordEdit? Lord { get; set; }
 }
 
 public sealed class EditorResponse
@@ -19,6 +20,7 @@ public sealed class EditorResponse
     public EditorSnapshot? Snapshot { get; set; }
     public EquipmentRules? EquipmentRules { get; set; }
     public InventorySnapshot? Inventory { get; set; }
+    public LordEdit? Lord { get; set; }
 }
 
 public sealed class EditorSnapshot
@@ -29,6 +31,46 @@ public sealed class EditorSnapshot
     public List<int> BlessingLevels { get; set; } = new();
     public List<HeroEdit> Heroes { get; set; } = new();
     public InventorySnapshot Inventory { get; set; } = new();
+    public LordEdit Lord { get; set; } = new();
+}
+
+public sealed class LordEdit
+{
+    public int Level { get; set; }
+    public int MaximumLevel { get; set; }
+    public List<LordJobEdit> Jobs { get; set; } = new();
+    public List<LordJobLevelRule> JobLevelRules { get; set; } = new();
+}
+
+public sealed class LordJobLevelRule
+{
+    public int Level { get; set; }
+    public int RequiredLordLevel { get; set; }
+    public int TotalAttributePoints { get; set; }
+    public int MaximumTalentBonusLevel { get; set; }
+}
+
+public sealed class LordJobEdit
+{
+    public int JobId { get; set; }
+    public string JobName { get; set; } = "";
+    public int Level { get; set; }
+    public int MaximumLevel { get; set; }
+    public int RequiredLordLevel { get; set; }
+    public int TotalAttributePoints { get; set; }
+    public int Strength { get; set; }
+    public int Dexterity { get; set; }
+    public int Intelligence { get; set; }
+    public List<LordTalentBonusEdit> TalentBonuses { get; set; } = new();
+}
+
+public sealed class LordTalentBonusEdit
+{
+    public int TalentId { get; set; }
+    public string Kind { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Level { get; set; }
+    public int MaximumLevel { get; set; }
 }
 
 public sealed class InventorySnapshot
