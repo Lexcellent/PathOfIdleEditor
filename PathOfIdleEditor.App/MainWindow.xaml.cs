@@ -539,7 +539,10 @@ public partial class MainWindow : Window
         BlessingLevelCombo.SelectedItem = hero.BlessingLevel;
         HeroQualityCombo.SelectedItem = _snapshot?.HeroQualities.FirstOrDefault(item => item.Value == hero.Quality);
         GrowthGrid.ItemsSource = hero.GrowthAttributes;
-        TalentsGrid.ItemsSource = hero.TalentSlots;
+        var talentView = CollectionViewSource.GetDefaultView(hero.TalentSlots);
+        talentView.GroupDescriptions.Clear();
+        talentView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TalentSlotEdit.Category)));
+        TalentsGrid.ItemsSource = talentView;
         var growthTotal = hero.GrowthAttributes.Sum(item => item.Value);
         GrowthRuleText.Text = $"可直接编辑且不消耗血肉结晶；单项范围与总成长读取自当前职业、品级的游戏规则。当前总和 {growthTotal:0.###}。";
         ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（增加时不消耗道具）；已有启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents} 可直接编辑等级。新增启迪必须消耗血肉结晶，因此不提供新增入口。";

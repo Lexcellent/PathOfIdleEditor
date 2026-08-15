@@ -235,6 +235,8 @@ internal sealed class TalentSlotEdit
     public int TalentId { get; set; }
     public int SkillId { get; set; }
     public string Kind { get; set; } = "";
+    public string Category { get; set; } = "";
+    public int CategoryOrder { get; set; }
     public string Name { get; set; } = "";
     public int Level { get; set; }
     public int MinimumLevel { get; set; }

@@ -406,7 +406,19 @@
             </Grid>
           </Grid>
           <DataGrid Grid.Row="2" x:Name="TalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="300"
-                    EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                    EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                    VirtualizingPanel.IsVirtualizingWhenGrouping="True">
+            <DataGrid.GroupStyle>
+              <GroupStyle>
+                <GroupStyle.HeaderTemplate>
+                  <DataTemplate>
+                    <Border Background="#1E293B" BorderBrush="#475569" BorderThickness="0,1,0,1" Padding="10,6" Margin="0,6,0,2">
+                      <TextBlock Text="{Binding Name}" Foreground="#E2E8F0" FontWeight="SemiBold" />
+                    </Border>
+                  </DataTemplate>
+                </GroupStyle.HeaderTemplate>
+              </GroupStyle>
+            </DataGrid.GroupStyle>
             <DataGrid.Columns>
               <DataGridTextColumn Header="位置" Binding="{Binding SlotId}" IsReadOnly="True" Width="75" />
               <DataGridTemplateColumn Header="来源标识" Width="120">
@@ -417,6 +429,15 @@
                         <Style TargetType="Border">
                           <Setter Property="Background" Value="#334155" />
                           <Style.Triggers>
+                            <DataTrigger Binding="{Binding Kind}" Value="基础技能">
+                              <Setter Property="Background" Value="#475569" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Kind}" Value="天赋技能">
+                              <Setter Property="Background" Value="#1D4ED8" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Kind}" Value="天赋专精">
+                              <Setter Property="Background" Value="#047857" />
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding IsAlien}" Value="True">
                               <Setter Property="Background" Value="#7C3AED" />
                             </DataTrigger>
@@ -431,7 +452,7 @@
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="技能 / 天赋（技能可更换）" Width="*">
+              <DataGridTemplateColumn Header="技能 / 天赋（天赋技能可更换）" Width="*">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <ComboBox ItemsSource="{Binding SkillOptions}" DisplayMemberPath="Display" SelectedValuePath="TalentId"

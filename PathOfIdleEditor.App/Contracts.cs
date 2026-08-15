@@ -288,6 +288,8 @@ public sealed class TalentSlotEdit : INotifyPropertyChanged
         set => SetField(ref _skillId, value);
     }
     public string Kind { get; set; } = "";
+    public string Category { get; set; } = "";
+    public int CategoryOrder { get; set; }
     public string Name
     {
         get => _name;

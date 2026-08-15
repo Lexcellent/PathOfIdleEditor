@@ -1235,6 +1235,14 @@ internal static class GameEditorService
         var jobTable = THeroJob.create();
         var otherJobSkillPool = save.GetOtherJobSkillPool();
         var otherJobMasteryPool = hero.heroTalentData.GetOtherJobMasteryPool();
+        var skillPositions = new HashSet<int>();
+        var masteryPositions = new HashSet<int>();
+        var skillPositionList = save.GetSkillPosList();
+        var masteryPositionList = save.GetMasteryPosList();
+        for (var index = 0; skillPositionList != null && index < skillPositionList.Count; index++)
+            skillPositions.Add(skillPositionList[index]);
+        for (var index = 0; masteryPositionList != null && index < masteryPositionList.Count; index++)
+            masteryPositions.Add(masteryPositionList[index]);
 
         foreach (var pair in save.talentDic)
         {
@@ -1245,18 +1253,27 @@ internal static class GameEditorService
             var currentRuntime = runtime.ContainsKey(pair.Key) ? runtime[pair.Key] : null;
             var cap = currentRuntime?.GetTalentLevelCap() ?? Math.Max(0, saved.level);
             var minimum = currentRuntime == null ? 0 : Math.Max(0, hero.heroTalentData.GetTalentMinSaveLevel(currentRuntime));
-            var isBaseSkill = !saved.isAlien && !saved.isInspired && currentTable.skillId > 0 &&
-                currentTable.skillId == save.baseSkillId;
+            var isExtra = saved.isAlien || saved.isInspired;
+            var isTalentSkill = !isExtra && skillPositions.Contains(saved.posId);
+            var isTalentMastery = !isExtra && masteryPositions.Contains(saved.posId);
+            // CreateBaseSkillTalentDic 与 GetSkillPosList 是两条独立原生路径；不属于天赋技能位置的
+            // 固定职业技能就是三个基础技能，不能只用单个 baseSkillId 判断。
+            var isBaseSkill = !isExtra && currentTable.skillId > 0 && !isTalentSkill;
+            var kind = saved.isInspired ? "启迪天赋" : saved.isAlien ? "异化技能" :
+                isBaseSkill ? "基础技能" : isTalentSkill ? "天赋技能" : "天赋专精";
+            var categoryOrder = isBaseSkill ? 0 : isTalentSkill ? 1 : isTalentMastery ? 2 :
+                saved.isAlien ? 3 : saved.isInspired ? 4 : 2;
             var slot = new TalentSlotEdit
             {
                 SlotId = pair.Key,
                 TalentId = saved.id,
                 SkillId = currentTable.skillId,
-                Kind = saved.isInspired ? "启迪天赋" : saved.isAlien ? "异化技能" :
-                    isBaseSkill ? "基础技能" : currentTable.skillId > 0 ? "主动技能" : "天赋/专精",
+                Kind = kind,
+                Category = kind,
+                CategoryOrder = categoryOrder,
                 IsAlien = saved.isAlien,
                 IsInspired = saved.isInspired,
-                CanChangeTalent = !isBaseSkill && (saved.isAlien || saved.isInspired || currentTable.skillId > 0),
+                CanChangeTalent = saved.isAlien || saved.isInspired || isTalentSkill,
                 Name = GetTalentDisplayName(currentTable),
                 Level = saved.level,
                 MinimumLevel = minimum,
@@ -1302,7 +1319,7 @@ internal static class GameEditorService
                     });
                 }
             }
-            else if (currentTable.skillId > 0 && !isBaseSkill)
+            else if (isTalentSkill)
             {
                 // 普通主动槽允许选择所有职业中与当前槽位类型、层级兼容的主动技能。
                 foreach (var candidatePair in talentTable)
@@ -1350,7 +1367,11 @@ internal static class GameEditorService
             });
             result.Add(slot);
         }
-        result.Sort((a, b) => a.SlotId.CompareTo(b.SlotId));
+        result.Sort((a, b) =>
+        {
+            var categoryCompare = a.CategoryOrder.CompareTo(b.CategoryOrder);
+            return categoryCompare != 0 ? categoryCompare : a.SlotId.CompareTo(b.SlotId);
+        });
         return result;
     }
 
