@@ -151,10 +151,10 @@
                     </GroupStyle>
                   </DataGrid.GroupStyle>
                   <DataGrid.Columns>
-                    <DataGridTextColumn Header="词条 ID" Binding="{Binding Id}" IsReadOnly="True" Width="90" />
-                    <DataGridTextColumn Header="词条描述" Binding="{Binding Name}" IsReadOnly="True" Width="*" />
-                    <DataGridTextColumn Header="类别" Binding="{Binding QualityName}" IsReadOnly="True" Width="110" />
-                    <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+                    <DataGridTextColumn Header="词条 ID" Binding="{Binding Id}" IsReadOnly="True" Width="Auto" MinWidth="90" />
+                    <DataGridTextColumn Header="词条描述" Binding="{Binding Name}" IsReadOnly="True" Width="Auto" MinWidth="260" MaxWidth="900" />
+                    <DataGridTextColumn Header="类别" Binding="{Binding QualityName}" IsReadOnly="True" Width="Auto" MinWidth="110" />
+                    <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="Auto" MinWidth="130" />
                   </DataGrid.Columns>
                 </DataGrid>
               </Grid>

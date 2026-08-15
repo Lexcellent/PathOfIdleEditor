@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace PathOfIdleEditor.App;
 
@@ -141,6 +142,7 @@ public partial class MainWindow : Window
                 editableAffix.Level = _equipmentRules.MaximumAffixLevel;
                 _affixes.Add(editableAffix);
             }
+            ResizeAffixColumnsToContent();
             var qualityLimits = string.Join("，", _equipmentRules.AffixQualityLimits
                 .OrderBy(pair => pair.Key)
                 .Select(pair => $"{(_equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"档位 {pair.Key}")}最多 {pair.Value} 条"));
@@ -215,7 +217,23 @@ public partial class MainWindow : Window
             // 新增词条默认填入游戏当前规则允许的最高等级，用户仍可在表格中下调。
             Level = _equipmentRules.MaximumAffixLevel
         });
+        ResizeAffixColumnsToContent();
         SetStatus($"已添加词条 {option.Id}，提交前仍会由游戏规则复核。", true);
+    }
+
+    private void ResizeAffixColumnsToContent()
+    {
+        // 等待绑定文本生成单元格后再重置为 Auto，强制 WPF 使用最新内容重新测量列宽。
+        Dispatcher.BeginInvoke(() =>
+        {
+            AffixesGrid.UpdateLayout();
+            foreach (var column in AffixesGrid.Columns)
+            {
+                column.Width = new DataGridLength(column.ActualWidth, DataGridLengthUnitType.Pixel);
+                column.Width = DataGridLength.Auto;
+            }
+            AffixesGrid.UpdateLayout();
+        }, DispatcherPriority.Loaded);
     }
 
     private void RemoveAffixButton_Click(object sender, RoutedEventArgs e)
