@@ -82,7 +82,7 @@ public partial class MainWindow : Window
         if (selectedBagItem != null)
         {
             var restoredBagItem = inventory.BagItems.FirstOrDefault(item =>
-                item.Type == selectedBagItem.Type && item.FieldIndex == selectedBagItem.FieldIndex &&
+                item.Container == selectedBagItem.Container && item.Type == selectedBagItem.Type && item.FieldIndex == selectedBagItem.FieldIndex &&
                 item.Id == selectedBagItem.Id && item.Quality == selectedBagItem.Quality && item.Level == selectedBagItem.Level);
             if (restoredBagItem != null && _inventoryView.Contains(restoredBagItem))
                 InventoryGrid.SelectedItem = restoredBagItem;
@@ -445,7 +445,37 @@ public partial class MainWindow : Window
         RemainingPointsText.Text = hero.RemainingSkillPoints.ToString(CultureInfo.InvariantCulture);
         BlessingLevelCombo.SelectedItem = hero.BlessingLevel;
         TalentsGrid.ItemsSource = hero.TalentSlots;
+        var growth = string.Join("，", hero.GrowthAttributes.Select(item => $"{item.Name} +{item.Value.ToString("0.###", CultureInfo.InvariantCulture)}"));
+        GrowthRuleText.Text = $"当前成长：{(string.IsNullOrWhiteSpace(growth) ? "游戏未提供成长项" : growth)}；本次原生重随价格 {hero.GrowthRerollPrice} 个血肉结晶。";
+        ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（游戏当前规则动态计算）；启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents}（神殿属性动态计算）。";
         SetStatus($"已选择“{hero.Name}”；角色合法等级为 1-{hero.MaximumLevel}。", true);
+    }
+
+    private async void RerollGrowthButton_Click(object sender, RoutedEventArgs e) =>
+        await RunHeroActionAsync("rerollHeroGrowth");
+
+    private async void SyncAlienSkillsButton_Click(object sender, RoutedEventArgs e) =>
+        await RunHeroActionAsync("syncAlienSkills");
+
+    private async void InspireHeroButton_Click(object sender, RoutedEventArgs e) =>
+        await RunHeroActionAsync("inspireHero");
+
+    private async Task RunHeroActionAsync(string action)
+    {
+        await RunAsync(async () =>
+        {
+            var hero = HeroCombo.SelectedItem as HeroEdit
+                ?? throw new InvalidOperationException("请选择角色。");
+            var response = await BridgeClient.SendAsync(new EditorRequest { Action = action, Hero = hero });
+            EnsureSuccess(response);
+            var refreshed = response.Snapshot ?? throw new InvalidDataException("桥接没有返回更新后的角色数据。");
+            _snapshot = refreshed;
+            BlessingLevelCombo.ItemsSource = refreshed.BlessingLevels;
+            HeroCombo.ItemsSource = refreshed.Heroes;
+            HeroCombo.SelectedItem = refreshed.Heroes.FirstOrDefault(item => item.UniqueId == hero.UniqueId);
+            BindInventory(refreshed.Inventory);
+            return response.Message;
+        });
     }
 
     private void SkillOption_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -104,12 +104,25 @@ internal static class GameEditorService
                 });
             }
         }
+        var runeQualityTable = TRuneQuality.create();
         foreach (var pair in TRune.create())
-            if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
+        {
+            if (pair.Value == null)
+                continue;
+            // 原生 CreateRune 只校验品级是否存在于 TRuneQuality，并不把符文限制在 baseQuality。
+            // 因此把当前游戏表中的全部合法品级交给用户选择，而不是在编辑器中硬编码范围。
+            foreach (var qualityPair in runeQualityTable)
             {
-                Type = (int)EItemType.rune, TypeName = GetItemTypeName(EItemType.rune), Id = pair.Key,
-                Name = pair.Value.name ?? $"符文 {pair.Key}", Quality = pair.Value.baseQuality
-            });
+                if (qualityPair.Value == null)
+                    continue;
+                snapshot.AvailableItems.Add(new InventoryTemplate
+                {
+                    Type = (int)EItemType.rune, TypeName = GetItemTypeName(EItemType.rune), Id = pair.Key,
+                    Name = pair.Value.name ?? $"符文 {pair.Key}", Quality = qualityPair.Key,
+                    LevelDescription = $"品级 {qualityPair.Key} · {qualityPair.Value.name}"
+                });
+            }
+        }
         foreach (var pair in TCurio.create())
             if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
             {
@@ -126,10 +139,11 @@ internal static class GameEditorService
             return qualityCompare != 0 ? qualityCompare : a.Level.CompareTo(b.Level);
         });
 
-        // 普通背包、符文背包和奇物背包是三套原生容器；分别读取可避免漏项。
-        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.res));
-        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.rune));
-        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.curio));
+        // 普通背包、符文背包、奇物背包以及 5x5 道具袋是相互独立的原生容器。
+        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.res), 0, "背包");
+        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.rune), 0, "背包");
+        AddInventoryFields(snapshot, lord.lordBagData.GetFieldList(EItemType.curio), 0, "背包");
+        AddInventoryFields(snapshot, lord.lordWalletData.fieldList, 1, "5x5 道具袋");
         snapshot.BagItems.Sort((a, b) =>
         {
             var typeCompare = a.Type.CompareTo(b.Type);
@@ -146,8 +160,10 @@ internal static class GameEditorService
         var type = (EItemType)edit.Type;
         if (type == EItemType.equip || !IsEditableItemType(type))
             throw new InvalidOperationException("该物品类型不能在物品编辑器中修改。");
+        if (edit.Container != 0 && edit.Container != 1)
+            throw new InvalidOperationException("物品存放位置无效，请刷新游戏数据后重试。");
 
-        var fields = lord.lordBagData.GetFieldList(type);
+        var fields = edit.Container == 1 ? lord.lordWalletData.fieldList : lord.lordBagData.GetFieldList(type);
         ItemFieldData? target = null;
         for (var i = 0; fields != null && i < fields.Count; i++)
         {
@@ -165,9 +181,15 @@ internal static class GameEditorService
 
         var oldCount = target.itemData.saveItemData.count;
         if (edit.Count > oldCount)
-            lord.lordBagData.StackItem(target, edit.Count - oldCount);
+        {
+            if (edit.Container == 1) lord.lordWalletData.StackItem(target, edit.Count - oldCount);
+            else lord.lordBagData.StackItem(target, edit.Count - oldCount);
+        }
         else if (edit.Count < oldCount)
-            lord.lordBagData.ReduceItem(target, oldCount - edit.Count);
+        {
+            if (edit.Container == 1) lord.lordWalletData.ReduceItem(target, oldCount - edit.Count);
+            else lord.lordBagData.ReduceItem(target, oldCount - edit.Count);
+        }
         SaveNow();
         return new EditorResponse
         {
@@ -251,7 +273,9 @@ internal static class GameEditorService
 
     private static void AddInventoryFields(
         InventorySnapshot snapshot,
-        Il2CppSystem.Collections.Generic.List<ItemFieldData> fields)
+        Il2CppSystem.Collections.Generic.List<ItemFieldData> fields,
+        int container,
+        string containerName)
     {
         for (var i = 0; fields != null && i < fields.Count; i++)
         {
@@ -264,6 +288,8 @@ internal static class GameEditorService
                 continue;
             snapshot.BagItems.Add(new InventoryItemEdit
             {
+                Container = container,
+                ContainerName = containerName,
                 FieldIndex = fieldSave.index,
                 Type = (int)save.type,
                 TypeName = GetItemTypeName(save.type),
@@ -499,7 +525,9 @@ internal static class GameEditorService
             if (oldTalent.skillId == save.baseSkillId && newTalent.skillId > 0)
                 save.baseSkillId = newTalent.skillId;
             target.id = requested.TalentId;
-            target.isAlien = newTalent.jobId != save.jobId;
+            // 启迪天赋本来就来自其他职业，但不属于异化技能，不能混用两个原生标记。
+            if (!target.isInspired)
+                target.isAlien = newTalent.jobId != save.jobId;
             target.SetLevel(requested.Level);
         }
 
@@ -524,19 +552,168 @@ internal static class GameEditorService
         return $"已保存角色“{GetHeroName(hero)}”，等级 {save.level}。";
     }
 
-    private static HeroEdit CreateHeroEdit(HeroData hero, int maximumLevel) => new()
+    internal static EditorResponse RerollHeroGrowth(int uniqueId)
     {
-        UniqueId = hero.saveHeroData.uniqueId,
-        Name = GetHeroName(hero),
-        Level = hero.saveHeroData.level,
-        MaximumLevel = Math.Max(1, maximumLevel),
-        BlessingLevel = hero.saveHeroData.blessLevel,
-        Strength = ReadAttribute(hero.saveHeroData, EAttrType.STR),
-        Dexterity = ReadAttribute(hero.saveHeroData, EAttrType.DEX),
-        Intelligence = ReadAttribute(hero.saveHeroData, EAttrType.INT),
-        RemainingSkillPoints = hero.saveHeroData.talentRemainPoint,
-        TalentSlots = BuildTalentSlots(hero)
+        var lord = GetLord();
+        var hero = FindHero(lord, uniqueId);
+        if (hero.IsAdventureBusy())
+            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
+        var house = Game.dataMgr.nowSeasonData.townData.GetHouse((EHouseType)102);
+        var torture = house?.housePrisonData?.priTurtoreData
+            ?? throw new InvalidOperationException("当前游戏尚未开放可重随成长的监牢设施。");
+        var previous = house.selectHeroData;
+        try
+        {
+            // 原生流程会校验血肉结晶、理智和设施规则，并正确扣除旧成长属性后重算。
+            house.selectHeroData = hero;
+            var price = torture.GetTorturePrice();
+            var result = torture.TortureHero();
+            if (result != 0)
+                throw new InvalidOperationException(GetTortureError(result, price));
+            SaveNow();
+            return new EditorResponse
+            {
+                Success = true,
+                Message = $"已按游戏规则消耗 {price} 个血肉结晶，重新随机“{GetHeroName(hero)}”的每级属性成长。",
+                Snapshot = GetSnapshot()
+            };
+        }
+        finally
+        {
+            house.selectHeroData = previous;
+        }
+    }
+
+    internal static EditorResponse SyncAlienSkills(int uniqueId)
+    {
+        var lord = GetLord();
+        var hero = FindHero(lord, uniqueId);
+        if (hero.IsAdventureBusy())
+            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
+        var maximum = Math.Max(0, hero.saveHeroData.GetAlienSkillCount());
+        hero.saveHeroData.SyncAlienSkillTalentDic();
+        hero.Init();
+        SaveNow();
+        return new EditorResponse
+        {
+            Success = true,
+            Message = $"已按游戏规则同步异化技能；当前角色上限为 {maximum} 个。",
+            Snapshot = GetSnapshot()
+        };
+    }
+
+    internal static EditorResponse InspireHero(int uniqueId)
+    {
+        var lord = GetLord();
+        var hero = FindHero(lord, uniqueId);
+        if (hero.IsAdventureBusy())
+            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
+        var house = Game.dataMgr.nowSeasonData.townData.GetHouse((EHouseType)101);
+        var inspire = house?.houseShrineData?.shrineInspireData
+            ?? throw new InvalidOperationException("当前游戏尚未开放启迪天赋的神殿设施。");
+        var previous = house.selectHeroData;
+        try
+        {
+            // 使用神殿原生接口，让数量上限、天赋池、等级和血肉结晶价格全部跟随当前版本。
+            house.selectHeroData = hero;
+            var price = inspire.GetInspirePrice();
+            var result = inspire.InspireHero();
+            if (result != 0)
+                throw new InvalidOperationException(GetInspireError(result, price));
+            SaveNow();
+            return new EditorResponse
+            {
+                Success = true,
+                Message = $"已消耗 {price} 个血肉结晶，为“{GetHeroName(hero)}”启迪一个天赋。",
+                Snapshot = GetSnapshot()
+            };
+        }
+        finally
+        {
+            house.selectHeroData = previous;
+        }
+    }
+
+    private static int GetMaximumInspiredTalents()
+    {
+        var house = Game.dataMgr?.nowSeasonData?.townData?.GetHouse((EHouseType)101);
+        return house?.houseAttrData == null
+            ? 0
+            : Math.Max(0, (int)Math.Round(house.houseAttrData.GetAttrValue((EHouseAttrType)10140, null)));
+    }
+
+    private static int GetGrowthRerollPrice(HeroData hero)
+    {
+        var house = Game.dataMgr?.nowSeasonData?.townData?.GetHouse((EHouseType)102);
+        var torture = house?.housePrisonData?.priTurtoreData;
+        if (house == null || torture == null)
+            return 0;
+        var previous = house.selectHeroData;
+        try
+        {
+            house.selectHeroData = hero;
+            return Math.Max(0, torture.GetTorturePrice());
+        }
+        finally
+        {
+            house.selectHeroData = previous;
+        }
+    }
+
+    private static string GetTortureError(int result, int price) => result switch
+    {
+        1 => "游戏没有找到可操作的角色。",
+        2 => $"血肉结晶不足，本次需要 {price} 个。",
+        3 => "角色理智已经耗尽，不能继续重随成长。",
+        4 => "角色理智为 100，当前游戏规则不允许执行该操作。",
+        _ => $"游戏拒绝重新随机属性成长（错误码 {result}）。"
     };
+
+    private static string GetInspireError(int result, int price) => result switch
+    {
+        1 => "游戏没有找到可操作的角色。",
+        3 => "该角色的启迪天赋数量已经达到当前神殿上限。",
+        4 => $"血肉结晶不足，本次需要 {price} 个。",
+        5 => "当前神殿等级尚未开放启迪功能。",
+        6 => "当前没有可启迪的其他职业天赋。",
+        7 => "游戏没有找到可用的启迪天赋位置。",
+        _ => $"游戏拒绝启迪天赋（错误码 {result}）。"
+    };
+
+    private static HeroEdit CreateHeroEdit(HeroData hero, int maximumLevel)
+    {
+        var save = hero.saveHeroData;
+        var result = new HeroEdit
+        {
+            UniqueId = save.uniqueId,
+            Name = GetHeroName(hero),
+            Level = save.level,
+            MaximumLevel = Math.Max(1, maximumLevel),
+            BlessingLevel = save.blessLevel,
+            Strength = ReadAttribute(save, EAttrType.STR),
+            Dexterity = ReadAttribute(save, EAttrType.DEX),
+            Intelligence = ReadAttribute(save, EAttrType.INT),
+            RemainingSkillPoints = save.talentRemainPoint,
+            MaximumAlienSkills = Math.Max(0, save.GetAlienSkillCount()),
+            MaximumInspiredTalents = GetMaximumInspiredTalents(),
+            GrowthRerollPrice = GetGrowthRerollPrice(hero),
+            TalentSlots = BuildTalentSlots(hero)
+        };
+        foreach (var pair in save.baseAttrUpDic)
+            result.GrowthAttributes.Add(new GrowthAttributeEdit
+            {
+                Type = (int)pair.Key,
+                Name = GetAttributeName(pair.Key),
+                Value = pair.Value
+            });
+        result.GrowthAttributes.Sort((a, b) => a.Type.CompareTo(b.Type));
+        foreach (var pair in save.talentDic)
+        {
+            if (pair.Value?.isAlien == true) result.AlienSkillCount++;
+            if (pair.Value?.isInspired == true) result.InspiredTalentCount++;
+        }
+        return result;
+    }
 
     private static List<TalentSlotEdit> BuildTalentSlots(HeroData hero)
     {
@@ -561,14 +738,19 @@ internal static class GameEditorService
                 SlotId = pair.Key,
                 TalentId = saved.id,
                 SkillId = currentTable.skillId,
-                Kind = currentTable.skillId > 0 ? "技能" : "天赋/专精",
+                Kind = saved.isInspired ? "启迪天赋" : saved.isAlien ? "异化技能" :
+                    currentTable.skillId > 0 ? "技能" : "天赋/专精",
+                IsAlien = saved.isAlien,
+                IsInspired = saved.isInspired,
                 Name = GetTalentDisplayName(currentTable),
                 Level = saved.level,
                 MinimumLevel = minimum,
                 MaximumLevel = Math.Max(minimum, cap)
             };
 
-            if (currentTable.skillId > 0)
+            // 额外技能以天赋 ID 作为存档字典键，不能像普通固定槽位那样原地换 ID；
+            // 异化由原生同步流程生成，启迪由神殿原生流程生成，这里只编辑其合法等级。
+            if (currentTable.skillId > 0 && !saved.isAlien && !saved.isInspired)
             {
                 for (var i = 0; legalSkillPool != null && i < legalSkillPool.Count; i++)
                 {
@@ -764,6 +946,14 @@ internal static class GameEditorService
 
     private static float ReadAttribute(SaveHeroData save, EAttrType type) =>
         save.mainAttrDic != null && save.mainAttrDic.ContainsKey(type) ? save.mainAttrDic[type] : 0;
+
+    private static string GetAttributeName(EAttrType type) => type switch
+    {
+        EAttrType.STR => "力量",
+        EAttrType.DEX => "敏捷",
+        EAttrType.INT => "智力",
+        _ => type.ToString()
+    };
 
     private static void SaveNow() =>
         // 只在完整操作成功后调用原生保存，校验失败时不会产生半完成存档。

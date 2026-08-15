@@ -53,6 +53,8 @@ public sealed class InventoryTemplate
 
 public sealed class InventoryItemEdit
 {
+    public int Container { get; set; }
+    public string ContainerName { get; set; } = "";
     public int FieldIndex { get; set; }
     public int Type { get; set; }
     public string TypeName { get; set; } = "";
@@ -146,8 +148,21 @@ public sealed class HeroEdit
     public float Dexterity { get; set; }
     public float Intelligence { get; set; }
     public int RemainingSkillPoints { get; set; }
+    public int MaximumAlienSkills { get; set; }
+    public int AlienSkillCount { get; set; }
+    public int MaximumInspiredTalents { get; set; }
+    public int InspiredTalentCount { get; set; }
+    public int GrowthRerollPrice { get; set; }
+    public List<GrowthAttributeEdit> GrowthAttributes { get; set; } = new();
     public List<TalentSlotEdit> TalentSlots { get; set; } = new();
     public string Display => $"{Name}  ·  ID {UniqueId}";
+}
+
+public sealed class GrowthAttributeEdit
+{
+    public int Type { get; set; }
+    public string Name { get; set; } = "";
+    public float Value { get; set; }
 }
 
 public sealed class TalentSlotEdit : INotifyPropertyChanged
@@ -160,6 +175,8 @@ public sealed class TalentSlotEdit : INotifyPropertyChanged
     private int _maximumLevel;
 
     public int SlotId { get; set; }
+    public bool IsAlien { get; set; }
+    public bool IsInspired { get; set; }
     public int TalentId
     {
         get => _talentId;

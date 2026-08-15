@@ -50,6 +50,9 @@ internal sealed class InventoryTemplate
 
 internal sealed class InventoryItemEdit
 {
+    // 0 为普通背包，1 为优先存放道具的 5x5 道具袋。
+    public int Container { get; set; }
+    public string ContainerName { get; set; } = "";
     public int FieldIndex { get; set; }
     public int Type { get; set; }
     public string TypeName { get; set; } = "";
@@ -134,7 +137,20 @@ internal sealed class HeroEdit
     public float Dexterity { get; set; }
     public float Intelligence { get; set; }
     public int RemainingSkillPoints { get; set; }
+    public int MaximumAlienSkills { get; set; }
+    public int AlienSkillCount { get; set; }
+    public int MaximumInspiredTalents { get; set; }
+    public int InspiredTalentCount { get; set; }
+    public int GrowthRerollPrice { get; set; }
+    public List<GrowthAttributeEdit> GrowthAttributes { get; set; } = new();
     public List<TalentSlotEdit> TalentSlots { get; set; } = new();
+}
+
+internal sealed class GrowthAttributeEdit
+{
+    public int Type { get; set; }
+    public string Name { get; set; } = "";
+    public float Value { get; set; }
 }
 
 internal sealed class TalentSlotEdit
@@ -148,6 +164,8 @@ internal sealed class TalentSlotEdit
     public int Level { get; set; }
     public int MinimumLevel { get; set; }
     public int MaximumLevel { get; set; }
+    public bool IsAlien { get; set; }
+    public bool IsInspired { get; set; }
     public List<SkillOption> SkillOptions { get; set; } = new();
 }
 
