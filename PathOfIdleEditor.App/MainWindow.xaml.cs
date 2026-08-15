@@ -566,7 +566,7 @@ public partial class MainWindow : Window
         ResizeTalentColumnsToContent();
         var growthTotal = hero.GrowthAttributes.Sum(item => item.Value);
         GrowthRuleText.Text = $"可直接编辑且不消耗血肉结晶；单项范围与总成长读取自当前职业、品级的游戏规则。当前总和 {growthTotal:0.###}。";
-        ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（增加时不消耗道具）；已有启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents} 可直接编辑等级。新增启迪必须消耗血肉结晶，因此不提供新增入口。";
+        ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}，启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents}；现有项目可直接修改技能或天赋及其等级。";
         SetStatus($"已选择“{hero.Name}”；角色合法等级为 1-{hero.MaximumLevel}。", true);
     }
 
@@ -582,12 +582,6 @@ public partial class MainWindow : Window
         hero.Quality = quality.Value;
         await RunHeroActionAsync("changeHeroQuality");
     }
-
-    private async void SyncAlienSkillsButton_Click(object sender, RoutedEventArgs e) =>
-        await RunHeroActionAsync("syncAlienSkills");
-
-    private async void AddAlienSkillButton_Click(object sender, RoutedEventArgs e) =>
-        await RunHeroActionAsync("addAlienSkill");
 
     private async Task RunHeroActionAsync(string action)
     {

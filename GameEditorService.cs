@@ -1104,71 +1104,6 @@ internal static class GameEditorService
         };
     }
 
-    internal static EditorResponse SyncAlienSkills(int uniqueId)
-    {
-        var lord = GetLord();
-        var hero = FindHero(lord, uniqueId);
-        if (hero.IsAdventureBusy())
-            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
-        var maximum = Math.Max(0, hero.saveHeroData.GetAlienSkillCount());
-        hero.saveHeroData.SyncAlienSkillTalentDic();
-        hero.Init();
-        SaveNow();
-        return new EditorResponse
-        {
-            Success = true,
-            Message = $"已按游戏规则同步异化技能；当前角色上限为 {maximum} 个。",
-            Snapshot = GetSnapshot()
-        };
-    }
-
-    internal static EditorResponse AddAlienSkill(int uniqueId)
-    {
-        var lord = GetLord();
-        var hero = FindHero(lord, uniqueId);
-        if (hero.IsAdventureBusy())
-            throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再操作。");
-        var save = hero.saveHeroData;
-        var maximum = Math.Max(0, save.GetAlienSkillCount());
-        var previousCount = CountExtraTalents(save, alien: true);
-        if (previousCount >= maximum)
-            throw new InvalidOperationException($"该角色的异化技能已经达到游戏当前上限 {maximum} 个。");
-
-        // 原生接口按技能树行寻找空位并从其他职业技能池随机选择；一次调用最多增加一个。
-        var candidateRows = new SortedSet<int>();
-        var skillPool = save.GetSkillTalentList();
-        for (var index = 0; skillPool != null && index < skillPool.Count; index++)
-            if (skillPool[index] != null)
-                candidateRows.Add(skillPool[index].floor);
-        foreach (var row in candidateRows)
-        {
-            save.TryAddAlienSkillOnRow(row);
-            if (CountExtraTalents(save, alien: true) > previousCount)
-                break;
-        }
-        var currentCount = CountExtraTalents(save, alien: true);
-        if (currentCount <= previousCount)
-            throw new InvalidOperationException("游戏没有找到可放置异化技能的空位或可用的其他职业技能。");
-
-        hero.Init();
-        SaveNow();
-        return new EditorResponse
-        {
-            Success = true,
-            Message = $"已按游戏原生规则为“{GetHeroName(hero)}”增加 1 个异化技能；当前 {currentCount}/{maximum}。",
-            Snapshot = GetSnapshot()
-        };
-    }
-
-    private static int CountExtraTalents(SaveHeroData save, bool alien)
-    {
-        var count = 0;
-        foreach (var pair in save.talentDic)
-            if (pair.Value != null && (alien ? pair.Value.isAlien : pair.Value.isInspired))
-                count++;
-        return count;
-    }
-
     private static int GetMaximumInspiredTalents()
     {
         var house = Game.dataMgr?.nowSeasonData?.townData?.GetHouse((EHouseType)101);
@@ -1597,6 +1532,14 @@ internal static class GameEditorService
             var skills = TSkill.create();
             if (skills.ContainsKey(talent.skillId))
                 return $"{skills[talent.skillId].name}（技能 {talent.skillId}）";
+        }
+        if (talent.masteryId > 0)
+        {
+            // 天赋专精的实际效果由 masteryId 指向。TTalent.name 是天赋节点名称，个别成对节点
+            // （例如“无畏”和“不屈”）与实际专精名称顺序不同，不能拿它标注启迪候选。
+            var mastery = TableData.getTMasteryData(talent.masteryId);
+            if (mastery != null && !string.IsNullOrWhiteSpace(mastery.name))
+                return mastery.name;
         }
         return string.IsNullOrWhiteSpace(talent.name) ? $"天赋 {talent.id}" : talent.name;
     }

@@ -391,19 +391,10 @@
                 <DataGridTextColumn Header="每级成长（可编辑）" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="190" />
               </DataGrid.Columns>
             </DataGrid>
-            <Grid Grid.Row="2">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-              <StackPanel>
-                <TextBlock Text="技能树、异化技能与启迪天赋" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock x:Name="ExtraTalentRuleText" Foreground="#94A3B8" Margin="0,4,0,0" TextWrapping="Wrap" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
-                <Button Content="增加一个异化技能" Click="AddAlienSkillButton_Click" Padding="14,8" Margin="0,0,8,0"
-                        ToolTip="调用游戏原生跨职业技能池，在可用技能树行中随机增加一个异化技能；不消耗血肉结晶。" />
-                <Button Content="按游戏规则同步异化技能" Click="SyncAlienSkillsButton_Click" Padding="14,8" Margin="0,0,8,0"
-                        ToolTip="按当前角色容量清理无效或超额异化技能，并由游戏随机补齐可用异化技能。" />
-              </StackPanel>
-            </Grid>
+            <StackPanel Grid.Row="2">
+              <TextBlock Text="技能树、异化技能与启迪天赋" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock x:Name="ExtraTalentRuleText" Foreground="#94A3B8" Margin="0,4,0,0" TextWrapping="Wrap" />
+            </StackPanel>
           </Grid>
           <DataGrid Grid.Row="2" x:Name="TalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="300"
                     EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
