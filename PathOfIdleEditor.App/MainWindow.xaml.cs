@@ -146,7 +146,7 @@ public partial class MainWindow : Window
             var qualityLimits = string.Join("，", _equipmentRules.AffixQualityLimits
                 .OrderBy(pair => pair.Key)
                 .Select(pair => $"{(_equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"档位 {pair.Key}")}最多 {pair.Value} 条"));
-            AffixRuleText.Text = $"游戏规则：总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条。";
+            AffixRuleText.Text = $"游戏规则：总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条；数值留空时由游戏随机。";
             SetStatus("已根据当前装备、品级和等级刷新游戏规则。", true);
         }
         catch (Exception exception)
@@ -215,7 +215,9 @@ public partial class MainWindow : Window
             QualityName = option.QualityName,
             Name = option.Name,
             // 新增词条默认填入游戏当前规则允许的最高等级，用户仍可在表格中下调。
-            Level = _equipmentRules.MaximumAffixLevel
+            Level = _equipmentRules.MaximumAffixLevel,
+            // 留空时由游戏原生逻辑随机生成词条数值。
+            Value = null
         });
         ResizeAffixColumnsToContent();
         SetStatus($"已添加词条 {option.Id}，提交前仍会由游戏规则复核。", true);
@@ -252,6 +254,8 @@ public partial class MainWindow : Window
         await RunAsync(async () =>
         {
             CommitGrid(AffixesGrid);
+            if (HasValidationError(AffixesGrid))
+                throw new InvalidOperationException("词条等级和数值只能填写整数；词条数值可以留空并由游戏随机生成。");
             var template = EquipmentTemplateCombo.SelectedItem as EquipmentTemplate
                 ?? throw new InvalidOperationException("请选择装备模板。");
             var quality = QualityCombo.SelectedItem as RuleOption
@@ -377,13 +381,23 @@ public partial class MainWindow : Window
     private static AffixEdit CloneAffix(AffixEdit value) => new()
     {
         Id = value.Id, Quality = value.Quality, QualityName = value.QualityName,
-        Name = value.Name, Level = value.Level
+        Name = value.Name, Level = value.Level, Value = value.Value
     };
 
     private static void CommitGrid(DataGrid grid)
     {
         grid.CommitEdit(DataGridEditingUnit.Cell, true);
         grid.CommitEdit(DataGridEditingUnit.Row, true);
+    }
+
+    private static bool HasValidationError(DependencyObject element)
+    {
+        if (Validation.GetHasError(element))
+            return true;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
+            if (HasValidationError(VisualTreeHelper.GetChild(element, index)))
+                return true;
+        return false;
     }
 
     private static void EnsureSuccess(EditorResponse response)

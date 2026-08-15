@@ -103,7 +103,9 @@ internal static class GameEditorService
                     Quality = affix.quality,
                     QualityName = qualityName,
                     Name = affixTable.ContainsKey(affix.id) ? GetAffixName(affixTable[affix.id]) : $"词条 {affix.id}",
-                    Level = Math.Clamp(affix.level, 1, rules.MaximumAffixLevel)
+                    Level = Math.Clamp(affix.level, 1, rules.MaximumAffixLevel),
+                    // 编辑器默认不复用预览装备的随机值，提交时让游戏为最终装备重新随机。
+                    Value = null
                 });
             }
         }
@@ -205,6 +207,9 @@ internal static class GameEditorService
                 rate, EAffixValueType.random);
             if (saveAffix == null)
                 throw new InvalidOperationException($"游戏拒绝创建词条 {requested.Id}。");
+            // 游戏原生创建路径没有针对外部 value 的范围校验；仅在用户填写时覆盖随机结果。
+            if (requested.Value.HasValue)
+                saveAffix.value = requested.Value.Value;
             saveItem.affixList.Add(saveAffix);
         }
 

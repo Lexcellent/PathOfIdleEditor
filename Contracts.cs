@@ -77,6 +77,8 @@ internal sealed class AffixEdit
     public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
     public int Level { get; set; }
+    // null 表示沿用游戏原生随机值；非 null 时在创建完成后覆盖存档中的整数值。
+    public int? Value { get; set; }
 }
 
 internal sealed class HeroEdit

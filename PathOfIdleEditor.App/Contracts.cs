@@ -79,6 +79,7 @@ public sealed class AffixEdit
     public string QualityName { get; set; } = "";
     public string Name { get; set; } = "";
     public int Level { get; set; }
+    public int? Value { get; set; }
 }
 
 public sealed class AffixCategoryOption

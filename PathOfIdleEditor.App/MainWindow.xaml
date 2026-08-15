@@ -155,6 +155,7 @@
                     <DataGridTextColumn Header="词条描述" Binding="{Binding Name}" IsReadOnly="True" Width="Auto" MinWidth="260" MaxWidth="900" />
                     <DataGridTextColumn Header="类别" Binding="{Binding QualityName}" IsReadOnly="True" Width="Auto" MinWidth="110" />
                     <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="Auto" MinWidth="130" />
+                    <DataGridTextColumn Header="数值（留空随机）" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Width="Auto" MinWidth="150" />
                   </DataGrid.Columns>
                 </DataGrid>
               </Grid>
