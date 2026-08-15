@@ -29,6 +29,7 @@ internal static class GameEditorService
 
         var partTable = TEquipPart.create();
         var templates = TEquip.create();
+        var maximumHeroLevel = GetMaximumHeroLevel();
 
         // 同类装备会共享游戏随机池参数；缓存池结果可显著减少主线程中的原生调用次数。
         var qualityPoolCache = new Dictionary<string, HashSet<int>>();
@@ -53,7 +54,7 @@ internal static class GameEditorService
         {
             var hero = lord.heroFieldList[i]?.heroData;
             if (hero?.saveHeroData != null)
-                snapshot.Heroes.Add(CreateHeroEdit(hero, lord.GetMaxHeroLevel()));
+                snapshot.Heroes.Add(CreateHeroEdit(hero, maximumHeroLevel));
         }
         return snapshot;
     }
@@ -228,9 +229,10 @@ internal static class GameEditorService
         if (hero.IsAdventureBusy())
             throw new InvalidOperationException("该角色正在进行冒险，请返回城镇后再修改。");
         var save = hero.saveHeroData;
-        var maxHeroLevel = Math.Max(1, lord.GetMaxHeroLevel());
-        if (edit.Level < 1 || edit.Level > maxHeroLevel)
-            throw new InvalidOperationException($"当前游戏规则允许的角色等级为 1-{maxHeroLevel}。");
+        var heroLevelTable = THeroLevel.create();
+        var maxHeroLevel = GetMaximumHeroLevel(heroLevelTable);
+        if (!heroLevelTable.ContainsKey(edit.Level))
+            throw new InvalidOperationException($"角色等级 {edit.Level} 不存在于当前游戏等级表中；表内上限为 {maxHeroLevel}。");
         var blessingTable = THeroBlessLevel.create();
         if (edit.BlessingLevel != 0 && !blessingTable.ContainsKey(edit.BlessingLevel))
             throw new InvalidOperationException($"赐福等级 {edit.BlessingLevel} 不存在于当前游戏规则表中。");
@@ -392,6 +394,18 @@ internal static class GameEditorService
         {
             return Math.Max(0, fallback);
         }
+    }
+
+    private static int GetMaximumHeroLevel(
+        Il2CppSystem.Collections.Generic.Dictionary<int, THeroLevel>? levelTable = null)
+    {
+        levelTable ??= THeroLevel.create();
+        var maximum = 0;
+        foreach (var pair in levelTable)
+            maximum = Math.Max(maximum, pair.Key);
+        if (maximum < 1)
+            throw new InvalidOperationException("当前游戏的角色等级表为空。");
+        return maximum;
     }
 
     private static TEquip RequireEquipmentRequest(EquipmentEdit edit)
