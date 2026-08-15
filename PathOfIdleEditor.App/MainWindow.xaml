@@ -169,8 +169,38 @@
                     <GroupStyle>
                       <GroupStyle.HeaderTemplate>
                         <DataTemplate>
-                          <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,1" Padding="10,6" Margin="0,6,0,2">
-                            <TextBlock Text="{Binding Name}" Foreground="#7DD3FC" FontWeight="SemiBold" />
+                          <Border BorderBrush="#475569" BorderThickness="0,1,0,1" Padding="10,6" Margin="0,6,0,2">
+                            <Border.Style>
+                              <Style TargetType="Border">
+                                <!-- 普通词条使用中性灰；未知的新档位也安全回退到该配色。 -->
+                                <Setter Property="Background" Value="#293241" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding Name}" Value="精良">
+                                    <Setter Property="Background" Value="#17375E" />
+                                    <Setter Property="BorderBrush" Value="#2563EB" />
+                                  </DataTrigger>
+                                  <DataTrigger Binding="{Binding Name}" Value="稀有">
+                                    <Setter Property="Background" Value="#493A16" />
+                                    <Setter Property="BorderBrush" Value="#D97706" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold">
+                              <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                  <Setter Property="Foreground" Value="#CBD5E1" />
+                                  <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Name}" Value="精良">
+                                      <Setter Property="Foreground" Value="#60A5FA" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Name}" Value="稀有">
+                                      <Setter Property="Foreground" Value="#FBBF24" />
+                                    </DataTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </TextBlock.Style>
+                            </TextBlock>
                           </Border>
                         </DataTemplate>
                       </GroupStyle.HeaderTemplate>
