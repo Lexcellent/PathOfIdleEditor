@@ -96,8 +96,7 @@ internal static class GameEditorService
             });
         }
         result.JobLevelRules.Sort((a, b) => a.Level.CompareTo(b.Level));
-        var masteryTable = TMastery.create();
-        var talentByMastery = BuildTalentByMasteryMap();
+        var talentTable = TTalent.create();
         foreach (var pair in lord.jobDic)
         {
             var runtime = pair.Value;
@@ -121,20 +120,19 @@ internal static class GameEditorService
             foreach (var rule in result.JobLevelRules)
                 edit.AttributeRules.Add(CreateLordJobAttributeRule(runtime, rule, jobLevels));
             ApplyLordJobAttributeRule(edit, edit.AttributeRules.Find(item => item.Level == edit.Level));
-            // save.talentDic 的键实际是 TMastery.id，不是 TTalent.id。按职业枚举专精表，
-            // 同时显示尚未获得的 0 级项，避免运行时 talentList 尚未建立时页面为空。
-            foreach (var masteryPair in masteryTable)
+            // LordTalentData.Create 接收 TTalent.id；魔偶项目是当前职业下带 masteryId 的天赋。
+            // 直接从表中枚举全部合法项，未获得项显示为 0，避免依赖尚未建立的运行时列表。
+            foreach (var talentPair in talentTable)
             {
-                var mastery = masteryPair.Value;
-                if (mastery == null || mastery.jobId != save.jobId)
+                var talent = talentPair.Value;
+                if (talent == null || talent.jobId != save.jobId || talent.masteryId <= 0)
                     continue;
-                talentByMastery.TryGetValue(mastery.id, out var talent);
                 edit.TalentBonuses.Add(new LordTalentBonusEdit
                 {
-                    TalentId = mastery.id,
-                    Kind = talent?.skillId > 0 ? "技能" : "天赋/专精",
-                    Name = GetMasteryDisplayName(mastery, talent),
-                    Level = save.talentDic.ContainsKey(mastery.id) ? save.talentDic[mastery.id] : 0,
+                    TalentId = talent.id,
+                    Kind = talent.skillId > 0 ? "技能" : "天赋/专精",
+                    Name = GetTalentDisplayName(talent),
+                    Level = save.talentDic.ContainsKey(talent.id) ? save.talentDic[talent.id] : 0,
                     MaximumLevel = Math.Max(0, save.GetMasteryMaxLevel())
                 });
             }
@@ -189,7 +187,7 @@ internal static class GameEditorService
             if (attributeTotal != attributeRule.TotalAttributePoints)
                 throw new InvalidOperationException($"“{request.JobName}”{request.Level} 级的力量、敏捷、智力累计总和必须为 {attributeRule.TotalAttributePoints}，当前为 {attributeTotal}。");
 
-            var currentTalentIds = GetLordMasteryIds(currentSave.jobId);
+            var currentTalentIds = GetLordTalentIds(currentSave.jobId);
             if (request.TalentBonuses.Count != currentTalentIds.Count)
                 throw new InvalidOperationException($"“{request.JobName}”的天赋加成列表已经变化，请刷新后重试。");
             var requestedTalentIds = new HashSet<int>();
@@ -211,19 +209,37 @@ internal static class GameEditorService
         {
             var runtime = entry.Runtime;
             var save = runtime.saveLordJobData;
-            runtime.RemoveJobAttrUp();
-            save.level = entry.Request.Level;
-            runtime.tJobLevelData = entry.Rule;
-            save.attrUpDic[(int)EAttrType.STR] = entry.Request.Strength;
-            save.attrUpDic[(int)EAttrType.DEX] = entry.Request.Dexterity;
-            save.attrUpDic[(int)EAttrType.INT] = entry.Request.Intelligence;
-            save.talentDic.Clear();
-            foreach (var talent in entry.Request.TalentBonuses)
-                if (talent.Level > 0)
-                    save.talentDic[talent.TalentId] = talent.Level;
-            // 原生初始化会重建显示列表、技能加成和等级锁，再把新属性加成应用到对应职业角色。
-            runtime.Init();
-            runtime.AddJobAttrUp();
+            var previousLevel = save.level;
+            var previousRule = runtime.tJobLevelData;
+            var previousAttributes = CopyIntDictionary(save.attrUpDic);
+            var previousTalents = CopyIntDictionary(save.talentDic);
+            try
+            {
+                runtime.RemoveJobAttrUp();
+                save.level = entry.Request.Level;
+                runtime.tJobLevelData = entry.Rule;
+                save.attrUpDic[(int)EAttrType.STR] = entry.Request.Strength;
+                save.attrUpDic[(int)EAttrType.DEX] = entry.Request.Dexterity;
+                save.attrUpDic[(int)EAttrType.INT] = entry.Request.Intelligence;
+                save.talentDic.Clear();
+                foreach (var talent in entry.Request.TalentBonuses)
+                    if (talent.Level > 0)
+                        save.talentDic[talent.TalentId] = talent.Level;
+                // 原生初始化会重建显示列表、技能加成和等级锁，再把新属性加成应用到对应职业角色。
+                runtime.Init();
+                runtime.AddJobAttrUp();
+            }
+            catch (Exception exception)
+            {
+                // 原生初始化失败时恢复本次写入前的内存数据，避免游戏继续运行在半修改状态。
+                save.level = previousLevel;
+                runtime.tJobLevelData = previousRule;
+                RestoreIntDictionary(save.attrUpDic, previousAttributes);
+                RestoreIntDictionary(save.talentDic, previousTalents);
+                runtime.Init();
+                runtime.AddJobAttrUp();
+                throw new InvalidOperationException($"“{entry.Request.JobName}”初始化失败，修改已回滚：{exception.Message}", exception);
+            }
         }
         SaveNow();
         return new EditorResponse
@@ -292,11 +308,27 @@ internal static class GameEditorService
         return save.attrUpDic != null && save.attrUpDic.ContainsKey(key) ? save.attrUpDic[key] : 0;
     }
 
-    private static HashSet<int> GetLordMasteryIds(int jobId)
+    private static Dictionary<int, int> CopyIntDictionary(
+        Il2CppSystem.Collections.Generic.Dictionary<int, int> source)
+    {
+        var result = new Dictionary<int, int>();
+        foreach (var pair in source) result[pair.Key] = pair.Value;
+        return result;
+    }
+
+    private static void RestoreIntDictionary(
+        Il2CppSystem.Collections.Generic.Dictionary<int, int> target,
+        Dictionary<int, int> source)
+    {
+        target.Clear();
+        foreach (var pair in source) target[pair.Key] = pair.Value;
+    }
+
+    private static HashSet<int> GetLordTalentIds(int jobId)
     {
         var result = new HashSet<int>();
-        foreach (var pair in TMastery.create())
-            if (pair.Value != null && pair.Value.jobId == jobId)
+        foreach (var pair in TTalent.create())
+            if (pair.Value != null && pair.Value.jobId == jobId && pair.Value.masteryId > 0)
                 result.Add(pair.Key);
         return result;
     }
@@ -304,7 +336,7 @@ internal static class GameEditorService
     private static bool HasLordTalentChanges(LordJobData runtime, List<LordTalentBonusEdit> requested)
     {
         var save = runtime.saveLordJobData;
-        var currentIds = GetLordMasteryIds(save.jobId);
+        var currentIds = GetLordTalentIds(save.jobId);
         if (currentIds.Count != requested.Count)
             return true;
         foreach (var talent in requested)
@@ -1332,33 +1364,6 @@ internal static class GameEditorService
         rules.AffixQualityNames[quality] = qualityTable.ContainsKey(quality)
             ? qualityTable[quality].name
             : $"词条档位 {quality}";
-    }
-
-    private static Dictionary<int, TTalent> BuildTalentByMasteryMap()
-    {
-        var result = new Dictionary<int, TTalent>();
-        foreach (var pair in TTalent.create())
-        {
-            var talent = pair.Value;
-            if (talent == null || talent.masteryId <= 0)
-                continue;
-            if (!result.ContainsKey(talent.masteryId) ||
-                (result[talent.masteryId].skillId <= 0 && talent.skillId > 0))
-                result[talent.masteryId] = talent;
-        }
-        return result;
-    }
-
-    private static string GetMasteryDisplayName(TMastery mastery, TTalent? talent)
-    {
-        var masteryName = string.IsNullOrWhiteSpace(mastery.name) ? $"专精 {mastery.id}" : mastery.name;
-        if (talent?.skillId > 0)
-        {
-            var skills = TSkill.create();
-            if (skills.ContainsKey(talent.skillId))
-                return $"{skills[talent.skillId].name} · {masteryName}";
-        }
-        return masteryName;
     }
 
     private static string GetTalentDisplayName(TTalent talent)

@@ -340,7 +340,7 @@
           <DataGrid Grid.Row="3" x:Name="LordTalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                     EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="专精 ID" Binding="{Binding TalentId}" IsReadOnly="True" Width="100" />
+              <DataGridTextColumn Header="天赋 ID" Binding="{Binding TalentId}" IsReadOnly="True" Width="100" />
               <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="110" />
               <DataGridTextColumn Header="名称" Binding="{Binding Name}" IsReadOnly="True" Width="*" MinWidth="260" />
               <DataGridTextColumn Header="等级加成（0=无）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="170" />
