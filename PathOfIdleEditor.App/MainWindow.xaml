@@ -59,6 +59,7 @@
     </Style>
     <Style TargetType="DataGridCell">
       <Setter Property="Foreground" Value="#E5E7EB" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="8,4" /><Setter Property="VerticalContentAlignment" Value="Center" />
       <Style.Triggers>
         <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" /></Trigger>
       </Style.Triggers>
@@ -113,21 +114,31 @@
 
             <Border Style="{StaticResource Card}">
               <Grid>
-                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <StackPanel>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.ColumnSpan="2">
                   <TextBlock Text="词条编辑" FontSize="18" FontWeight="SemiBold" />
-                  <TextBlock x:Name="AffixRuleText" Text="选择装备、品级和等级后读取游戏词条池。" Foreground="#94A3B8" Margin="0,4,0,10" />
+                  <TextBlock x:Name="AffixRuleText" Text="选择装备、品级和等级后读取游戏词条池。"
+                             Foreground="#94A3B8" Margin="0,4,0,10" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                  <ComboBox x:Name="AffixQualityCombo" DisplayMemberPath="Display" MinWidth="180" SelectionChanged="AffixQualityCombo_SelectionChanged" />
-                  <ComboBox x:Name="AllowedAffixCombo" DisplayMemberPath="Display" MinWidth="330" />
-                  <Button Content="添加词条" Click="AddAffixButton_Click" />
-                  <Button Content="删除选中" Click="RemoveAffixButton_Click" Background="#B91C1C" />
-                </StackPanel>
+                <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,8">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <ComboBox Grid.Column="0" x:Name="AffixQualityCombo" DisplayMemberPath="Display" SelectionChanged="AffixQualityCombo_SelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="AllowedAffixCombo" DisplayMemberPath="Display" MinWidth="300" />
+                  <Button Grid.Column="2" Content="添加词条" Click="AddAffixButton_Click" />
+                  <Button Grid.Column="3" Content="删除选中" Click="RemoveAffixButton_Click" Background="#B91C1C" />
+                </Grid>
                 <DataGrid Grid.Row="2" Grid.ColumnSpan="2" x:Name="AffixesGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="240"
                           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                          VirtualizingPanel.IsVirtualizingWhenGrouping="True">
+                          VirtualizingPanel.IsVirtualizingWhenGrouping="True" RowHeight="38" ColumnHeaderHeight="40" FontSize="14">
                   <DataGrid.GroupStyle>
                     <GroupStyle>
                       <GroupStyle.HeaderTemplate>
