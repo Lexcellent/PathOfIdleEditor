@@ -8,4 +8,17 @@
     <AssemblyName>PathOfIdleEditor</AssemblyName>
     <RootNamespace>PathOfIdleEditor.App</RootNamespace>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- 论坛发布使用 Windows x64 自包含单文件，用户无需另装 .NET 桌面运行库。 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- WPF 不启用裁剪，避免反射使用的界面类型被错误移除。 -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
 </Project>

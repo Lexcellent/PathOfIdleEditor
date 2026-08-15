@@ -34,6 +34,15 @@ dotnet build .\PathOfIdleEditor.csproj -c Release
 dotnet build .\PathOfIdleEditor.App\PathOfIdleEditor.App.csproj -c Release
 ```
 
+论坛发布版桌面程序使用 Windows x64 自包含单文件：
+
+```powershell
+dotnet publish .\PathOfIdleEditor.App\PathOfIdleEditor.App.csproj -c Release
+```
+
+发布时只需提供 `PathOfIdleEditor.App\bin\Release\net8.0-windows\win-x64\publish\PathOfIdleEditor.exe`
+和桥接 Mod 的 `bin\Release\net6.0\PathOfIdleEditorBridge.dll`。桌面程序已内置 .NET 8 运行库。
+
 桥接默认引用 `D:\app\Steam\steamapps\common\PathOfIdle`，可通过 `-p:PathOfIdleGameDir='其他目录'` 覆盖。
 
 ## 安装和使用
@@ -41,7 +50,7 @@ dotnet build .\PathOfIdleEditor.App\PathOfIdleEditor.App.csproj -c Release
 1. 备份游戏存档并关闭游戏。
 2. 将 `bin\Release\net6.0\PathOfIdleEditorBridge.dll` 复制到游戏的 `BepInEx\plugins`。
 3. 启动游戏并进入一个游戏存档，建议回到城镇。
-4. 单独启动 `PathOfIdleEditor.App\bin\Release\net8.0-windows\PathOfIdleEditor.exe`。
+4. 单独启动发布包中的 `PathOfIdleEditor.exe`。
 5. 点击“连接 / 刷新”，然后使用装备生成、物品编辑或角色编辑页。
 
 桌面程序只连接本机命名管道 `PathOfIdleEditor.v1`，不会监听网络端口。关闭游戏后连接会自动失效。
