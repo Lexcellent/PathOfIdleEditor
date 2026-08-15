@@ -437,6 +437,8 @@ public partial class MainWindow : Window
             SetStatus($"{option.QualityName}最多允许 {qualityLimit} 条词条。", false);
             return;
         }
+        var defaultLevel = _equipmentRules.MaximumAffixLevel;
+        var defaultRange = option.ValueRanges.FirstOrDefault(range => range.Level == defaultLevel);
         _affixes.Add(new AffixEdit
         {
             Id = option.Id,
@@ -444,13 +446,13 @@ public partial class MainWindow : Window
             QualityName = option.QualityName,
             Name = option.Name,
             // 新增词条默认填入游戏当前规则允许的最高等级，用户仍可在表格中下调。
-            Level = _equipmentRules.MaximumAffixLevel,
+            Level = defaultLevel,
             ValueRanges = option.ValueRanges.Select(range => new AffixValueRange
             {
                 Level = range.Level, Minimum = range.Minimum, Maximum = range.Maximum
             }).ToList(),
-            // 留空时由游戏原生逻辑随机生成词条数值。
-            Value = null
+            // 有原生范围时默认最大值；特殊随机等无范围词条保持空值并交给游戏生成。
+            Value = defaultRange?.Maximum
         });
         ResizeAffixColumnsToContent();
         SetStatus($"已添加词条 {option.Id}，提交前仍会由游戏规则复核。", true);

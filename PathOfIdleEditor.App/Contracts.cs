@@ -190,6 +190,7 @@ public sealed class AffixOption
 public sealed class AffixEdit : INotifyPropertyChanged
 {
     private int _level;
+    private int? _value;
     public int Id { get; set; }
     public int Quality { get; set; }
     public string QualityName { get; set; } = "";
@@ -203,9 +204,21 @@ public sealed class AffixEdit : INotifyPropertyChanged
             _level = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Level)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ValueRange)));
+            var range = ValueRanges.FirstOrDefault(item => item.Level == value);
+            if (range != null)
+                Value = range.Maximum;
         }
     }
-    public int? Value { get; set; }
+    public int? Value
+    {
+        get => _value;
+        set
+        {
+            if (_value == value) return;
+            _value = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+        }
+    }
     public List<AffixValueRange> ValueRanges { get; set; } = new();
     public string ValueRange
     {

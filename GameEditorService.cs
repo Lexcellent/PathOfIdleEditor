@@ -830,6 +830,12 @@ internal static class GameEditorService
                 if (option.Id == generated.Id && option.Quality == generated.Quality)
                 {
                     generated.ValueRanges = new List<AffixValueRange>(option.ValueRanges);
+                    foreach (var range in generated.ValueRanges)
+                        if (range.Level == generated.Level)
+                        {
+                            generated.Value = range.Maximum;
+                            break;
+                        }
                     break;
                 }
         rules.AllowedAffixes.Sort((a, b) => a.Id.CompareTo(b.Id));
