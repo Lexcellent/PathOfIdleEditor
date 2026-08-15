@@ -68,11 +68,20 @@ internal static class GameEditorService
             ?? throw new InvalidOperationException("游戏原生装备生成器拒绝了当前组合。");
         var rules = new EquipmentRules
         {
-            MaximumAffixCount = preview.affixList?.Count ?? 0,
             MaximumAffixLevel = Math.Max(1, levelData.affixMaxLevel)
         };
         var affixTable = TAffix.create();
         var affixQualityTable = TAffixQuality.create();
+        var equipmentQuality = TEquipQuality.create()[edit.Quality];
+
+        // 装备品级表明确记录精良/稀有词条数量。数量为 0 的类别不能出现在编辑器中，
+        // 因此不能假设每件装备都有普通词条，也不能只依赖一次随机预览推断类别。
+        AddAffixQualityLimit(rules, affixQualityTable, (int)EItemQualityType.fine,
+            Math.Max(0, equipmentQuality.fineAffixCount));
+        AddAffixQualityLimit(rules, affixQualityTable, (int)EItemQualityType.rare,
+            Math.Max(0, equipmentQuality.rareAffixCount));
+
+        var generatedQualityCounts = new Dictionary<int, int>();
 
         if (preview.affixList != null)
         {
@@ -82,10 +91,8 @@ internal static class GameEditorService
                 if (affix == null)
                     continue;
 
-                // GetEquipAffixPool 的 quality 参数表示词条档位，而不是装备品级。
-                // 直接统计原生预览结果，可以兼容同时拥有精良、稀有等多档词条的装备。
-                rules.AffixQualityLimits.TryGetValue(affix.quality, out var qualityCount);
-                rules.AffixQualityLimits[affix.quality] = qualityCount + 1;
+                generatedQualityCounts.TryGetValue(affix.quality, out var qualityCount);
+                generatedQualityCounts[affix.quality] = qualityCount + 1;
                 var qualityName = affixQualityTable.ContainsKey(affix.quality)
                     ? affixQualityTable[affix.quality].name
                     : $"词条档位 {affix.quality}";
@@ -101,8 +108,18 @@ internal static class GameEditorService
             }
         }
 
-        // 按预览装备实际出现的每个词条档位分别读取原生池，再合并成编辑器候选项。
+        // 套装、传奇等装备可能带有品级表计数之外的固定词条；这些类别以原生结果为准保留。
+        foreach (var pair in generatedQualityCounts)
+        {
+            rules.AffixQualityLimits.TryGetValue(pair.Key, out var configuredCount);
+            AddAffixQualityLimit(rules, affixQualityTable, pair.Key, Math.Max(configuredCount, pair.Value));
+        }
+        foreach (var limit in rules.AffixQualityLimits.Values)
+            rules.MaximumAffixCount += limit;
+
+        // 只按实际数量大于 0 的词条档位读取原生池；稀有专属装备不会混入普通词条。
         var poolById = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
+        var allowedAffixIds = new HashSet<int>();
         foreach (var pair in poolById)
         {
             if (!affixTable.ContainsKey(pair.Key))
@@ -118,6 +135,20 @@ internal static class GameEditorService
                 Quality = affix.quality,
                 QualityName = qualityName,
                 Name = GetAffixName(affix)
+            });
+            allowedAffixIds.Add(affix.id);
+        }
+        // 固定词条不一定属于随机池，仍应允许用户删除后重新添加。
+        foreach (var generated in rules.GeneratedAffixes)
+        {
+            if (!allowedAffixIds.Add(generated.Id))
+                continue;
+            rules.AllowedAffixes.Add(new AffixOption
+            {
+                Id = generated.Id,
+                Quality = generated.Quality,
+                QualityName = generated.QualityName,
+                Name = generated.Name
             });
         }
         rules.AllowedAffixes.Sort((a, b) => a.Id.CompareTo(b.Id));
@@ -437,6 +468,20 @@ internal static class GameEditorService
                 result[pool[i].id] = pool[i];
         }
         return result;
+    }
+
+    private static void AddAffixQualityLimit(
+        EquipmentRules rules,
+        Il2CppSystem.Collections.Generic.Dictionary<int, TAffixQuality> qualityTable,
+        int quality,
+        int count)
+    {
+        if (count <= 0)
+            return;
+        rules.AffixQualityLimits[quality] = count;
+        rules.AffixQualityNames[quality] = qualityTable.ContainsKey(quality)
+            ? qualityTable[quality].name
+            : $"词条档位 {quality}";
     }
 
     private static string GetTalentDisplayName(TTalent talent)
