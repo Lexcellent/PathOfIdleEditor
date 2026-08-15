@@ -90,7 +90,8 @@ internal static class GameEditorService
             {
                 Level = pair.Key,
                 RequiredLordLevel = GetRequiredLordLevel(pair.Key, jobLevels),
-                TotalAttributePoints = pair.Value.totalAttr,
+                // TJobLevel.totalAttr 是从该级升到下一级时新增的点数，不是当前等级总点数。
+                TotalAttributePoints = GetCumulativeLordJobAttributeTotal(pair.Key, jobLevels),
                 MaximumTalentBonusLevel = pair.Value.masteryMaxLevel
             });
         }
@@ -109,7 +110,8 @@ internal static class GameEditorService
                 Level = save.level,
                 MaximumLevel = maximumJobLevel,
                 RequiredLordLevel = GetRequiredLordLevel(save.level, jobLevels),
-                TotalAttributePoints = levelRule?.totalAttr ?? 0,
+                TotalAttributePoints = ReadLordJobAttribute(save, EAttrType.STR) +
+                    ReadLordJobAttribute(save, EAttrType.DEX) + ReadLordJobAttribute(save, EAttrType.INT),
                 Strength = ReadLordJobAttribute(save, EAttrType.STR),
                 Dexterity = ReadLordJobAttribute(save, EAttrType.DEX),
                 Intelligence = ReadLordJobAttribute(save, EAttrType.INT)
@@ -178,14 +180,14 @@ internal static class GameEditorService
             var attributeRule = CreateLordJobAttributeRule(runtime, new LordJobLevelRule
             {
                 Level = request.Level,
-                TotalAttributePoints = rule.totalAttr
+                TotalAttributePoints = GetCumulativeLordJobAttributeTotal(request.Level, jobLevels)
             }, jobLevels);
             ValidateLordJobAttribute(request.JobName, "力量", request.Strength, attributeRule.StrengthMinimum, attributeRule.StrengthMaximum);
             ValidateLordJobAttribute(request.JobName, "敏捷", request.Dexterity, attributeRule.DexterityMinimum, attributeRule.DexterityMaximum);
             ValidateLordJobAttribute(request.JobName, "智力", request.Intelligence, attributeRule.IntelligenceMinimum, attributeRule.IntelligenceMaximum);
             var attributeTotal = request.Strength + request.Dexterity + request.Intelligence;
-            if (attributeTotal != rule.totalAttr)
-                throw new InvalidOperationException($"“{request.JobName}”{request.Level} 级的力量、敏捷、智力总和必须为 {rule.totalAttr}，当前为 {attributeTotal}。");
+            if (attributeTotal != attributeRule.TotalAttributePoints)
+                throw new InvalidOperationException($"“{request.JobName}”{request.Level} 级的力量、敏捷、智力累计总和必须为 {attributeRule.TotalAttributePoints}，当前为 {attributeTotal}。");
 
             var currentTalents = GetLordTalentData(runtime);
             var currentTalentIds = new HashSet<int>(currentTalents.Keys);
@@ -244,6 +246,38 @@ internal static class GameEditorService
         return jobLevels.ContainsKey(jobLevel - 1) ? Math.Max(1, jobLevels[jobLevel - 1].lordLevel) : 1;
     }
 
+    private static int GetCumulativeLordJobAttributeTotal(
+        int level,
+        Il2CppSystem.Collections.Generic.Dictionary<int, TJobLevel> jobLevels)
+    {
+        var total = 0;
+        // 等级 N 的总加成由 1->2、2->3……N-1->N 的升级奖励累计而成。
+        foreach (var pair in jobLevels)
+            if (pair.Value != null && pair.Key < level)
+                total += Math.Max(0, pair.Value.totalAttr);
+        return total;
+    }
+
+    private static int GetTargetLordJobAttributeTotal(
+        SaveLordJobData save,
+        int targetLevel,
+        Il2CppSystem.Collections.Generic.Dictionary<int, TJobLevel> jobLevels)
+    {
+        var total = ReadLordJobAttribute(save, EAttrType.STR) +
+            ReadLordJobAttribute(save, EAttrType.DEX) + ReadLordJobAttribute(save, EAttrType.INT);
+        if (targetLevel > save.level)
+        {
+            for (var level = save.level; level < targetLevel; level++)
+                if (jobLevels.ContainsKey(level)) total += Math.Max(0, jobLevels[level].totalAttr);
+        }
+        else
+        {
+            for (var level = targetLevel; level < save.level; level++)
+                if (jobLevels.ContainsKey(level)) total -= Math.Max(0, jobLevels[level].totalAttr);
+        }
+        return Math.Max(0, total);
+    }
+
     private static int GetMaximumTableKey<T>(Il2CppSystem.Collections.Generic.Dictionary<int, T> table, string tableName)
     {
         var maximum = 0;
@@ -287,14 +321,33 @@ internal static class GameEditorService
         LordJobLevelRule levelRule,
         Il2CppSystem.Collections.Generic.Dictionary<int, TJobLevel> jobLevels)
     {
-        var result = new LordJobAttributeRule { Level = levelRule.Level };
+        var save = runtime.saveLordJobData;
+        var targetTotal = GetTargetLordJobAttributeTotal(save, levelRule.Level, jobLevels);
+        var result = new LordJobAttributeRule
+        {
+            Level = levelRule.Level,
+            TotalAttributePoints = targetTotal
+        };
         if (!jobLevels.ContainsKey(levelRule.Level))
             return result;
         var previousRule = runtime.tJobLevelData;
+        var previousLevel = save.level;
+        var hadStrength = save.attrUpDic.ContainsKey((int)EAttrType.STR);
+        var hadDexterity = save.attrUpDic.ContainsKey((int)EAttrType.DEX);
+        var hadIntelligence = save.attrUpDic.ContainsKey((int)EAttrType.INT);
+        var previousStrength = ReadLordJobAttribute(save, EAttrType.STR);
+        var previousDexterity = ReadLordJobAttribute(save, EAttrType.DEX);
+        var previousIntelligence = ReadLordJobAttribute(save, EAttrType.INT);
         try
         {
-            // 让游戏自己的 CreateAttrRangeList 按目标等级和职业表计算，避免复制易变的百分比规则。
+            // CreateAttrRangeList 按存档内三项属性的累计总点数计算职业独立范围。
+            // 临时写入目标等级的累计总数，读取完原生范围后立即完整还原，不保存临时状态。
+            save.level = levelRule.Level;
+            save.attrUpDic[(int)EAttrType.STR] = targetTotal;
+            save.attrUpDic[(int)EAttrType.DEX] = 0;
+            save.attrUpDic[(int)EAttrType.INT] = 0;
             runtime.tJobLevelData = jobLevels[levelRule.Level];
+            runtime.CreateAttrUpList();
             runtime.CreateAttrRangeList();
             for (var index = 0; index < runtime.attrRangeList.Count; index++)
             {
@@ -307,16 +360,31 @@ internal static class GameEditorService
         }
         finally
         {
+            save.level = previousLevel;
+            RestoreLordJobAttribute(save, EAttrType.STR, hadStrength, previousStrength);
+            RestoreLordJobAttribute(save, EAttrType.DEX, hadDexterity, previousDexterity);
+            RestoreLordJobAttribute(save, EAttrType.INT, hadIntelligence, previousIntelligence);
             runtime.tJobLevelData = previousRule;
+            runtime.CreateAttrUpList();
             runtime.CreateAttrRangeList();
         }
         return result;
+    }
+
+    private static void RestoreLordJobAttribute(SaveLordJobData save, EAttrType type, bool existed, int value)
+    {
+        var key = (int)type;
+        if (existed)
+            save.attrUpDic[key] = value;
+        else
+            save.attrUpDic.Remove(key);
     }
 
     private static void ApplyLordJobAttributeRule(LordJobEdit edit, LordJobAttributeRule? rule)
     {
         if (rule == null)
             return;
+        edit.TotalAttributePoints = rule.TotalAttributePoints;
         edit.StrengthMinimum = rule.StrengthMinimum;
         edit.StrengthMaximum = rule.StrengthMaximum;
         edit.DexterityMinimum = rule.DexterityMinimum;

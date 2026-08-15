@@ -134,6 +134,8 @@ public partial class MainWindow : Window
         var attributeRule = job.AttributeRules.FirstOrDefault(item => item.Level == job.Level);
         if (attributeRule != null)
         {
+            // 每个职业以自身当前存档总加成为锚点累计升级点数，不能使用单次升级奖励。
+            job.TotalAttributePoints = attributeRule.TotalAttributePoints;
             job.StrengthMinimum = attributeRule.StrengthMinimum;
             job.StrengthMaximum = attributeRule.StrengthMaximum;
             job.DexterityMinimum = attributeRule.DexterityMinimum;

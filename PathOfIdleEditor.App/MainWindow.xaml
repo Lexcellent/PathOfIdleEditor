@@ -323,7 +323,7 @@
               <DataGridTextColumn Header="等级" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="85" />
               <DataGridTextColumn Header="等级上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="90" />
               <DataGridTextColumn Header="崇拜者要求" Binding="{Binding RequiredLordLevel}" IsReadOnly="True" Width="105" />
-              <DataGridTextColumn Header="属性总点" Binding="{Binding TotalAttributePoints}" IsReadOnly="True" Width="90" />
+              <DataGridTextColumn Header="累计属性总点" Binding="{Binding TotalAttributePoints}" IsReadOnly="True" Width="110" />
               <DataGridTextColumn Header="力量加成" Binding="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Width="95" />
               <DataGridTextColumn Header="力量范围" Binding="{Binding StrengthRange}" IsReadOnly="True" Width="85" />
               <DataGridTextColumn Header="敏捷加成" Binding="{Binding Dexterity, UpdateSourceTrigger=PropertyChanged}" Width="95" />

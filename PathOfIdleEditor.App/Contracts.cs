@@ -78,6 +78,7 @@ public sealed class LordJobEdit
 public sealed class LordJobAttributeRule
 {
     public int Level { get; set; }
+    public int TotalAttributePoints { get; set; }
     public int StrengthMinimum { get; set; }
     public int StrengthMaximum { get; set; }
     public int DexterityMinimum { get; set; }
