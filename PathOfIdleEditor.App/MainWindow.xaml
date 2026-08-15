@@ -324,12 +324,12 @@
               <DataGridTextColumn Header="等级上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="90" />
               <DataGridTextColumn Header="崇拜者要求" Binding="{Binding RequiredLordLevel}" IsReadOnly="True" Width="105" />
               <DataGridTextColumn Header="累计属性总点" Binding="{Binding TotalAttributePoints}" IsReadOnly="True" Width="110" />
-              <DataGridTextColumn Header="力量加成" Binding="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Width="95" />
-              <DataGridTextColumn Header="力量范围" Binding="{Binding StrengthRange}" IsReadOnly="True" Width="85" />
-              <DataGridTextColumn Header="敏捷加成" Binding="{Binding Dexterity, UpdateSourceTrigger=PropertyChanged}" Width="95" />
-              <DataGridTextColumn Header="敏捷范围" Binding="{Binding DexterityRange}" IsReadOnly="True" Width="85" />
-              <DataGridTextColumn Header="智力加成" Binding="{Binding Intelligence, UpdateSourceTrigger=PropertyChanged}" Width="95" />
-              <DataGridTextColumn Header="智力范围" Binding="{Binding IntelligenceRange}" IsReadOnly="True" Width="85" />
+              <DataGridTextColumn Header="力量总加成" Binding="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Width="105" />
+              <DataGridTextColumn Header="力量累计范围" Binding="{Binding StrengthRange}" IsReadOnly="True" Width="105" />
+              <DataGridTextColumn Header="敏捷总加成" Binding="{Binding Dexterity, UpdateSourceTrigger=PropertyChanged}" Width="105" />
+              <DataGridTextColumn Header="敏捷累计范围" Binding="{Binding DexterityRange}" IsReadOnly="True" Width="105" />
+              <DataGridTextColumn Header="智力总加成" Binding="{Binding Intelligence, UpdateSourceTrigger=PropertyChanged}" Width="105" />
+              <DataGridTextColumn Header="智力累计范围" Binding="{Binding IntelligenceRange}" IsReadOnly="True" Width="105" />
             </DataGrid.Columns>
           </DataGrid>
 
@@ -340,7 +340,7 @@
           <DataGrid Grid.Row="3" x:Name="LordTalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                     EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="天赋 ID" Binding="{Binding TalentId}" IsReadOnly="True" Width="100" />
+              <DataGridTextColumn Header="专精 ID" Binding="{Binding TalentId}" IsReadOnly="True" Width="100" />
               <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="110" />
               <DataGridTextColumn Header="名称" Binding="{Binding Name}" IsReadOnly="True" Width="*" MinWidth="260" />
               <DataGridTextColumn Header="等级加成（0=无）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="170" />

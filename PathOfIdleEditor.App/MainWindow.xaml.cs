@@ -120,8 +120,8 @@ public partial class MainWindow : Window
         SyncLordJobRule(job);
         LordTalentsGrid.ItemsSource = job.TalentBonuses;
         LordTalentRuleText.Text = $"{job.JobName}：魔偶 {job.Level} 级要求崇拜者至少 {job.RequiredLordLevel} 级；" +
-            $"力量 {job.StrengthMinimum}-{job.StrengthMaximum}，敏捷 {job.DexterityMinimum}-{job.DexterityMaximum}，" +
-            $"智力 {job.IntelligenceMinimum}-{job.IntelligenceMaximum}，三项总和必须为 {job.TotalAttributePoints}。";
+            $"力量总加成 {job.StrengthMinimum}-{job.StrengthMaximum}，敏捷总加成 {job.DexterityMinimum}-{job.DexterityMaximum}，" +
+            $"智力总加成 {job.IntelligenceMinimum}-{job.IntelligenceMaximum}，三项累计总和必须为 {job.TotalAttributePoints}。";
     }
 
     private void SyncLordJobRule(LordJobEdit job)
