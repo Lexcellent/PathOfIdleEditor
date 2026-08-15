@@ -161,6 +161,7 @@ public sealed class EquipmentEdit
     public int TemplateId { get; set; }
     public int Quality { get; set; }
     public int Level { get; set; }
+    public int ForgeLevel { get; set; }
     public List<AffixEdit> Affixes { get; set; } = new();
 }
 
@@ -168,6 +169,7 @@ public sealed class EquipmentRules
 {
     public int MaximumAffixCount { get; set; }
     public int MaximumAffixLevel { get; set; }
+    public List<int> AllowedForgeLevels { get; set; } = new();
     public Dictionary<int, int> AffixQualityLimits { get; set; } = new();
     public Dictionary<int, string> AffixQualityNames { get; set; } = new();
     public List<AffixOption> AllowedAffixes { get; set; } = new();

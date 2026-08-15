@@ -577,6 +577,14 @@ internal static class GameEditorService
         {
             MaximumAffixLevel = Math.Max(1, levelData.affixMaxLevel)
         };
+        var equipmentLevelTable = TEquipLevel.create();
+        // 游戏称该系统为“锻造”。锻造等级必须同时存在于锻造表，且基础等级加锻造等级后仍有装备等级数据。
+        foreach (var pair in TEquipForge.create())
+            if (equipmentLevelTable.ContainsKey(edit.Level + pair.Key))
+                rules.AllowedForgeLevels.Add(pair.Key);
+        rules.AllowedForgeLevels.Sort();
+        if (rules.AllowedForgeLevels.Count == 0)
+            throw new InvalidOperationException($"装备等级 {edit.Level} 没有可用的锻造等级。");
         var affixTable = TAffix.create();
         var affixQualityTable = TAffixQuality.create();
         var equipmentQuality = TEquipQuality.create()[edit.Quality];
@@ -690,6 +698,8 @@ internal static class GameEditorService
         var lord = GetLord();
         var template = RequireEquipmentRequest(edit);
         var rules = GetEquipmentRules(edit);
+        if (!rules.AllowedForgeLevels.Contains(edit.ForgeLevel))
+            throw new InvalidOperationException($"锻造等级 {edit.ForgeLevel} 不适用于当前装备等级。");
         if (edit.Affixes.Count > rules.MaximumAffixCount)
             throw new InvalidOperationException($"当前品级最多允许 {rules.MaximumAffixCount} 条词条。");
 
@@ -708,6 +718,8 @@ internal static class GameEditorService
         // 先用原生流程建立完整装备结构，再只替换用户明确编辑过的词条列表。
         var saveItem = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
             ?? throw new InvalidOperationException("游戏原生装备生成器创建失败。");
+        // 在构造运行时 ItemData 前写入锻造等级，让原生初始化流程按最终装备等级重算基础属性。
+        saveItem.forgeLevel = edit.ForgeLevel;
         saveItem.affixList.Clear();
         foreach (var requested in edit.Affixes)
         {
@@ -754,7 +766,7 @@ internal static class GameEditorService
         if (!lord.lordBagData.addItemToBag(item))
             throw new InvalidOperationException("领主背包已满，装备没有加入存档。");
         SaveNow();
-        return $"已生成“{template.name}”：品级 {edit.Quality}，等级 {edit.Level}，{edit.Affixes.Count} 条词条。";
+        return $"已生成“{template.name}”：品级 {edit.Quality}，等级 {edit.Level}，锻造 +{edit.ForgeLevel}，{edit.Affixes.Count} 条词条。";
     }
 
     internal static string UpdateHero(HeroEdit edit)

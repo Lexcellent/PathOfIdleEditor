@@ -342,6 +342,12 @@ public partial class MainWindow : Window
                 return;
             EnsureSuccess(response);
             _equipmentRules = response.EquipmentRules ?? throw new InvalidDataException("桥接没有返回装备规则。");
+            var previousForgeLevel = EquipmentForgeLevelCombo.SelectedItem is int selectedForgeLevel
+                ? selectedForgeLevel : 0;
+            EquipmentForgeLevelCombo.ItemsSource = _equipmentRules.AllowedForgeLevels;
+            EquipmentForgeLevelCombo.SelectedItem = _equipmentRules.AllowedForgeLevels.Contains(previousForgeLevel)
+                ? previousForgeLevel
+                : _equipmentRules.AllowedForgeLevels.FirstOrDefault();
             var affixCategories = _equipmentRules.AffixQualityLimits
                 .OrderBy(pair => pair.Key)
                 .Select(pair => new AffixCategoryOption
@@ -365,7 +371,8 @@ public partial class MainWindow : Window
             var qualityLimits = string.Join("，", _equipmentRules.AffixQualityLimits
                 .OrderBy(pair => pair.Key)
                 .Select(pair => $"{(_equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"档位 {pair.Key}")}最多 {pair.Value} 条"));
-            AffixRuleText.Text = $"游戏规则：总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条；数值留空时由游戏随机。";
+            var maximumForgeLevel = _equipmentRules.AllowedForgeLevels.Max();
+            AffixRuleText.Text = $"游戏规则：锻造等级 0-{maximumForgeLevel}；总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条；数值留空时由游戏随机。";
             SetStatus("已根据当前装备、品级和等级刷新游戏规则。", true);
         }
         catch (Exception exception)
@@ -376,6 +383,7 @@ public partial class MainWindow : Window
             _affixes.Clear();
             AffixQualityCombo.ItemsSource = null;
             AllowedAffixCombo.ItemsSource = null;
+            EquipmentForgeLevelCombo.ItemsSource = null;
             AffixRuleText.Text = $"无法读取规则：{exception.Message}";
             SetStatus($"读取装备规则失败：{exception.Message}", false);
         }
@@ -481,6 +489,8 @@ public partial class MainWindow : Window
                 ?? throw new InvalidOperationException("该装备没有可用的合法品级。");
             var level = EquipmentLevelCombo.SelectedItem is int selectedLevel
                 ? selectedLevel : throw new InvalidOperationException("请选择合法装备等级。");
+            var forgeLevel = EquipmentForgeLevelCombo.SelectedItem is int selectedForgeLevel
+                ? selectedForgeLevel : throw new InvalidOperationException("请选择合法锻造等级。");
             if (_equipmentRules == null)
                 throw new InvalidOperationException("尚未读取当前组合的游戏规则。");
             // UI 先给出即时反馈；桥接层收到请求后仍会按最新游戏规则再次验证。
@@ -497,6 +507,7 @@ public partial class MainWindow : Window
                     TemplateId = template.Id,
                     Quality = quality.Value,
                     Level = level,
+                    ForgeLevel = forgeLevel,
                     Affixes = _affixes.Select(CloneAffix).ToList()
                 }
             });

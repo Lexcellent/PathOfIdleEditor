@@ -124,7 +124,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="210" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                  <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.ColumnSpan="2" Text="基础规则" FontSize="18" FontWeight="SemiBold" Margin="4,0,4,10" />
                 <Label Grid.Row="1" Content="搜索装备名称或 ID" />
@@ -135,6 +135,8 @@
                 <ComboBox Grid.Row="3" Grid.Column="1" x:Name="QualityCombo" DisplayMemberPath="Display" SelectionChanged="EquipmentSelectionChanged" />
                 <Label Grid.Row="4" Content="合法装备等级" />
                 <ComboBox Grid.Row="4" Grid.Column="1" x:Name="EquipmentLevelCombo" SelectionChanged="EquipmentSelectionChanged" IsTextSearchEnabled="True" />
+                <Label Grid.Row="5" Content="锻造等级" />
+                <ComboBox Grid.Row="5" Grid.Column="1" x:Name="EquipmentForgeLevelCombo" IsTextSearchEnabled="True" />
               </Grid>
             </Border>
 
