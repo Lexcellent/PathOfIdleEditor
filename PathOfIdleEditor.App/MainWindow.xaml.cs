@@ -58,50 +58,100 @@ public partial class MainWindow : Window
 
     private void BindInventory(InventorySnapshot inventory)
     {
+        // 桥接返回的是全新快照；用稳定字段恢复选项，避免添加后跳回当前类型的第一项。
+        var selectedTemplate = InventoryTemplateCombo.SelectedItem as InventoryTemplate;
+        var selectedBagItem = InventoryGrid.SelectedItem as InventoryItemEdit;
         if (_snapshot != null)
             _snapshot.Inventory = inventory;
         _inventoryTemplateView = CollectionViewSource.GetDefaultView(inventory.AvailableItems);
         _inventoryView = CollectionViewSource.GetDefaultView(inventory.BagItems);
         InventoryTemplateCombo.ItemsSource = _inventoryTemplateView;
         InventoryGrid.ItemsSource = _inventoryView;
-        InventoryTemplateSearchText_TextChanged(InventoryTemplateSearchText, new TextChangedEventArgs(TextBox.TextChangedEvent, UndoAction.None));
-        InventorySearchText_TextChanged(InventorySearchText, new TextChangedEventArgs(TextBox.TextChangedEvent, UndoAction.None));
-        if (InventoryTemplateCombo.SelectedItem == null && !_inventoryTemplateView.IsEmpty)
-            InventoryTemplateCombo.SelectedIndex = 0;
+        RefreshInventoryFilters();
+
+        if (selectedTemplate != null)
+        {
+            var restoredTemplate = inventory.AvailableItems.FirstOrDefault(item =>
+                item.Type == selectedTemplate.Type && item.Id == selectedTemplate.Id &&
+                item.Quality == selectedTemplate.Quality && item.Level == selectedTemplate.Level);
+            if (restoredTemplate != null && _inventoryTemplateView.Contains(restoredTemplate))
+                InventoryTemplateCombo.SelectedItem = restoredTemplate;
+        }
+        EnsureInventoryTemplateSelection();
+
+        if (selectedBagItem != null)
+        {
+            var restoredBagItem = inventory.BagItems.FirstOrDefault(item =>
+                item.Type == selectedBagItem.Type && item.FieldIndex == selectedBagItem.FieldIndex &&
+                item.Id == selectedBagItem.Id && item.Quality == selectedBagItem.Quality && item.Level == selectedBagItem.Level);
+            if (restoredBagItem != null && _inventoryView.Contains(restoredBagItem))
+                InventoryGrid.SelectedItem = restoredBagItem;
+        }
     }
 
     private void InventoryTemplateSearchText_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_inventoryTemplateView == null)
             return;
-        var keyword = InventoryTemplateSearchText.Text.Trim();
-        _inventoryTemplateView.Filter = item =>
-        {
-            if (item is not InventoryTemplate template || string.IsNullOrWhiteSpace(keyword))
-                return true;
-            return template.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-                   template.TypeName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-                   template.Id.ToString(CultureInfo.InvariantCulture).Contains(keyword, StringComparison.OrdinalIgnoreCase);
-        };
-        _inventoryTemplateView.Refresh();
-        if (InventoryTemplateCombo.SelectedItem == null && !_inventoryTemplateView.IsEmpty)
-            InventoryTemplateCombo.SelectedIndex = 0;
+        RefreshInventoryFilters();
+        EnsureInventoryTemplateSelection();
     }
 
     private void InventorySearchText_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_inventoryView == null)
             return;
-        var keyword = InventorySearchText.Text.Trim();
-        _inventoryView.Filter = item =>
-        {
-            if (item is not InventoryItemEdit inventoryItem || string.IsNullOrWhiteSpace(keyword))
-                return true;
-            return inventoryItem.Name.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-                   inventoryItem.TypeName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
-                   inventoryItem.Id.ToString(CultureInfo.InvariantCulture).Contains(keyword, StringComparison.OrdinalIgnoreCase);
-        };
+        RefreshInventoryFilters();
+    }
+
+    private void InventoryTypeTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 子控件的 SelectionChanged 会冒泡到 TabControl，只处理类型 Tab 自己的切换事件。
+        if (e.Source != InventoryTypeTabs || _inventoryTemplateView == null || _inventoryView == null)
+            return;
+        RefreshInventoryFilters();
+        EnsureInventoryTemplateSelection();
+        if (InventoryGrid.SelectedItem != null && !_inventoryView.Contains(InventoryGrid.SelectedItem))
+            InventoryGrid.SelectedItem = null;
+    }
+
+    private void RefreshInventoryFilters()
+    {
+        if (_inventoryTemplateView == null || _inventoryView == null)
+            return;
+        var type = GetSelectedInventoryType();
+        var templateKeyword = InventoryTemplateSearchText.Text.Trim();
+        var bagKeyword = InventorySearchText.Text.Trim();
+        _inventoryTemplateView.Filter = item => item is InventoryTemplate template && template.Type == type &&
+            (string.IsNullOrWhiteSpace(templateKeyword) ||
+             template.Name.Contains(templateKeyword, StringComparison.CurrentCultureIgnoreCase) ||
+             template.Id.ToString(CultureInfo.InvariantCulture).Contains(templateKeyword, StringComparison.OrdinalIgnoreCase) ||
+             template.LevelDescription.Contains(templateKeyword, StringComparison.CurrentCultureIgnoreCase));
+        _inventoryView.Filter = item => item is InventoryItemEdit inventoryItem && inventoryItem.Type == type &&
+            (string.IsNullOrWhiteSpace(bagKeyword) ||
+             inventoryItem.Name.Contains(bagKeyword, StringComparison.CurrentCultureIgnoreCase) ||
+             inventoryItem.Id.ToString(CultureInfo.InvariantCulture).Contains(bagKeyword, StringComparison.OrdinalIgnoreCase));
+        _inventoryTemplateView.Refresh();
         _inventoryView.Refresh();
+    }
+
+    private void EnsureInventoryTemplateSelection()
+    {
+        if (_inventoryTemplateView == null)
+            return;
+        if (InventoryTemplateCombo.SelectedItem != null &&
+            !_inventoryTemplateView.Contains(InventoryTemplateCombo.SelectedItem))
+            InventoryTemplateCombo.SelectedItem = null;
+        if (InventoryTemplateCombo.SelectedItem == null && !_inventoryTemplateView.IsEmpty)
+            InventoryTemplateCombo.SelectedIndex = 0;
+    }
+
+    private int GetSelectedInventoryType()
+    {
+        if (InventoryTypeTabs.SelectedItem is TabItem tab &&
+            int.TryParse(tab.Tag?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var type))
+            return type;
+        return 1;
     }
 
     private async void AddInventoryButton_Click(object sender, RoutedEventArgs e)

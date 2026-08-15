@@ -226,10 +226,19 @@
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
-          <Border Style="{StaticResource Card}">
+          <!-- 类型标签同时过滤新增候选和当前背包，避免不同物品规则混在一起。 -->
+          <TabControl x:Name="InventoryTypeTabs" Height="47" Margin="0,0,0,10" Background="Transparent" BorderThickness="0"
+                      SelectionChanged="InventoryTypeTabs_SelectionChanged">
+            <TabItem Header="资源" Tag="1" IsSelected="True" />
+            <TabItem Header="工具 / 宝箱" Tag="10" />
+            <TabItem Header="符文" Tag="3" />
+            <TabItem Header="奇物" Tag="5" />
+          </TabControl>
+          <Border Grid.Row="1" Style="{StaticResource Card}">
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="170" />
@@ -243,7 +252,7 @@
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
               <TextBlock Grid.ColumnSpan="4" Text="增加物品到背包" FontSize="18" FontWeight="SemiBold" Margin="4,0,4,10" />
-              <Label Grid.Row="1" Content="搜索名称、ID 或类别" />
+              <Label Grid.Row="1" Content="搜索名称或 ID" />
               <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" x:Name="InventoryTemplateSearchText" TextChanged="InventoryTemplateSearchText_TextChanged" />
               <Label Grid.Row="2" Content="物品" />
               <ComboBox Grid.Row="2" Grid.Column="1" x:Name="InventoryTemplateCombo" DisplayMemberPath="Display" />
@@ -252,13 +261,13 @@
             </Grid>
           </Border>
 
-          <Grid Grid.Row="1" Margin="4,0,4,8">
+          <Grid Grid.Row="2" Margin="4,0,4,8">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <TextBlock Text="当前背包物品" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
             <TextBox Grid.Column="1" x:Name="InventorySearchText" TextChanged="InventorySearchText_TextChanged"
                      ToolTip="搜索名称、ID 或类别" Margin="18,0,4,0" />
           </Grid>
-          <DataGrid Grid.Row="2" x:Name="InventoryGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"
+          <DataGrid Grid.Row="3" x:Name="InventoryGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"
                     EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                     RowHeight="38" ColumnHeaderHeight="40">
             <DataGrid.Columns>
@@ -271,7 +280,7 @@
               <DataGridTextColumn Header="数量（可编辑）" Binding="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Width="140" />
             </DataGrid.Columns>
           </DataGrid>
-          <Grid Grid.Row="3" Margin="0,8,0,0">
+          <Grid Grid.Row="4" Margin="0,8,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <Button Content="增加选中物品到背包" Click="AddInventoryButton_Click" Height="46" FontSize="16" />
             <Button Grid.Column="1" Content="应用选中物品数量（0 表示删除）" Click="ApplyInventoryCountButton_Click" Height="46" FontSize="16" />

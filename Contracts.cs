@@ -45,6 +45,7 @@ internal sealed class InventoryTemplate
     public string Name { get; set; } = "";
     public int Quality { get; set; }
     public int Level { get; set; }
+    public string LevelDescription { get; set; } = "";
 }
 
 internal sealed class InventoryItemEdit

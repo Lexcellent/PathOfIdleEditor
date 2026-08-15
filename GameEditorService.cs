@@ -73,12 +73,37 @@ internal static class GameEditorService
                 Type = (int)EItemType.res, TypeName = GetItemTypeName(EItemType.res), Id = pair.Key,
                 Name = pair.Value.name ?? $"资源 {pair.Key}", Quality = pair.Value.quality
             });
+        var boxLevelTable = TBoxLevel.create();
+        var maximumBoxLevel = Math.Max(0, Game.dataMgr?.nowVersionData?.equipBoxMaxLevel ?? 0);
         foreach (var pair in TTool.create())
-            if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
+        {
+            var tool = pair.Value;
+            if (tool == null)
+                continue;
+            if (tool.type == (int)EToolType.equipBox)
             {
-                Type = (int)EItemType.tool, TypeName = GetItemTypeName(EItemType.tool), Id = pair.Key,
-                Name = pair.Value.name ?? $"工具 {pair.Key}", Quality = pair.Value.quality, Level = 1
-            });
+                // 装备宝箱的 level 会直接决定开箱时使用的装备等级范围，不能统一写成 1。
+                foreach (var boxLevelPair in boxLevelTable)
+                {
+                    if (boxLevelPair.Value == null || boxLevelPair.Key > maximumBoxLevel)
+                        continue;
+                    snapshot.AvailableItems.Add(new InventoryTemplate
+                    {
+                        Type = (int)EItemType.tool, TypeName = GetItemTypeName(EItemType.tool), Id = pair.Key,
+                        Name = tool.name ?? $"工具 {pair.Key}", Quality = tool.quality, Level = boxLevelPair.Key,
+                        LevelDescription = $"宝箱等级 {boxLevelPair.Key}（装备 {boxLevelPair.Value.minEquipLevel}-{boxLevelPair.Value.maxEquipLevel} 级）"
+                    });
+                }
+            }
+            else
+            {
+                snapshot.AvailableItems.Add(new InventoryTemplate
+                {
+                    Type = (int)EItemType.tool, TypeName = GetItemTypeName(EItemType.tool), Id = pair.Key,
+                    Name = tool.name ?? $"工具 {pair.Key}", Quality = tool.quality, Level = 1
+                });
+            }
+        }
         foreach (var pair in TRune.create())
             if (pair.Value != null) snapshot.AvailableItems.Add(new InventoryTemplate
             {
@@ -94,7 +119,11 @@ internal static class GameEditorService
         snapshot.AvailableItems.Sort((a, b) =>
         {
             var typeCompare = a.Type.CompareTo(b.Type);
-            return typeCompare != 0 ? typeCompare : a.Id.CompareTo(b.Id);
+            if (typeCompare != 0) return typeCompare;
+            var idCompare = a.Id.CompareTo(b.Id);
+            if (idCompare != 0) return idCompare;
+            var qualityCompare = a.Quality.CompareTo(b.Quality);
+            return qualityCompare != 0 ? qualityCompare : a.Level.CompareTo(b.Level);
         });
 
         // 普通背包、符文背包和奇物背包是三套原生容器；分别读取可避免漏项。
@@ -170,8 +199,17 @@ internal static class GameEditorService
             {
                 var table = TTool.create();
                 if (!table.ContainsKey(edit.Id)) throw new InvalidOperationException($"工具 {edit.Id} 不存在于当前游戏表中。");
-                name = table[edit.Id].name;
-                saveItem = SaveItemData.CreateTool(edit.Id, edit.Count, Math.Max(1, edit.Level));
+                var tool = table[edit.Id];
+                var level = Math.Max(1, edit.Level);
+                if (tool.type == (int)EToolType.equipBox)
+                {
+                    var boxLevels = TBoxLevel.create();
+                    var maximumLevel = Math.Max(0, Game.dataMgr?.nowVersionData?.equipBoxMaxLevel ?? 0);
+                    if (!boxLevels.ContainsKey(level) || level > maximumLevel)
+                        throw new InvalidOperationException($"装备宝箱等级 {level} 不存在于当前游戏版本规则中。");
+                }
+                name = tool.name;
+                saveItem = SaveItemData.CreateTool(edit.Id, edit.Count, level);
                 break;
             }
             case EItemType.rune:

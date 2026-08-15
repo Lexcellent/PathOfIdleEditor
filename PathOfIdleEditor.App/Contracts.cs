@@ -45,7 +45,10 @@ public sealed class InventoryTemplate
     public string Name { get; set; } = "";
     public int Quality { get; set; }
     public int Level { get; set; }
-    public string Display => $"{TypeName} · {Id} · {Name}";
+    public string LevelDescription { get; set; } = "";
+    public string Display => string.IsNullOrWhiteSpace(LevelDescription)
+        ? $"{Id} · {Name}"
+        : $"{Id} · {Name} · {LevelDescription}";
 }
 
 public sealed class InventoryItemEdit
