@@ -9,18 +9,42 @@
     <SolidColorBrush x:Key="Panel2Brush" Color="#172033" />
     <SolidColorBrush x:Key="BorderBrush" Color="#2B3851" />
     <SolidColorBrush x:Key="AccentBrush" Color="#38BDF8" />
-    <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#E5E7EB" /></Style>
+    <!-- TextBlock 保持继承父控件的 Foreground，避免下拉框浅色背景中仍被强制显示为白色。 -->
     <Style TargetType="Label"><Setter Property="Foreground" Value="#CBD5E1" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
     <Style TargetType="TextBox">
       <Setter Property="Background" Value="#0F172A" /><Setter Property="Foreground" Value="#F8FAFC" />
+      <Setter Property="CaretBrush" Value="#F8FAFC" /><Setter Property="SelectionBrush" Value="#2563EB" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="Padding" Value="9,6" /><Setter Property="Margin" Value="4" />
     </Style>
     <Style TargetType="ComboBox">
-      <Setter Property="Background" Value="#0F172A" /><Setter Property="Foreground" Value="#F8FAFC" />
+      <!-- 系统 ComboBox 模板在部分 Windows 主题下固定使用浅色输入区域，因此采用深色文字保证对比度。 -->
+      <Setter Property="Background" Value="#F8FAFC" /><Setter Property="Foreground" Value="#0F172A" />
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="Padding" Value="8,5" /><Setter Property="Margin" Value="4" />
     </Style>
-    <Style TargetType="ComboBoxItem"><Setter Property="Background" Value="#F8FAFC" /><Setter Property="Foreground" Value="#111827" /><Setter Property="Padding" Value="8,5" /></Style>
-    <Style TargetType="TabItem"><Setter Property="Foreground" Value="#E5E7EB" /><Setter Property="Background" Value="#172033" /><Setter Property="Padding" Value="18,8" /></Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Background" Value="#F8FAFC" /><Setter Property="Foreground" Value="#0F172A" /><Setter Property="Padding" Value="8,5" />
+      <Style.Triggers>
+        <Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#2563EB" /><Setter Property="Foreground" Value="White" /></Trigger>
+        <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" /></Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style TargetType="TabItem">
+      <Setter Property="Foreground" Value="#CBD5E1" /><Setter Property="Padding" Value="18,9" /><Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TabItem">
+            <Border x:Name="HeaderBorder" Background="#172033" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8,8,0,0" Padding="{TemplateBinding Padding}">
+              <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="HeaderBorder" Property="Background" Value="#23314A" /><Setter Property="Foreground" Value="White" /></Trigger>
+              <Trigger Property="IsSelected" Value="True"><Setter TargetName="HeaderBorder" Property="Background" Value="#1D4ED8" /><Setter TargetName="HeaderBorder" Property="BorderBrush" Value="#60A5FA" /><Setter Property="Foreground" Value="White" /></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="#64748B" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style TargetType="Button">
       <Setter Property="Background" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" />
       <Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="16,8" /><Setter Property="Margin" Value="4" /><Setter Property="Cursor" Value="Hand" />
@@ -32,6 +56,12 @@
     </Style>
     <Style TargetType="DataGridColumnHeader">
       <Setter Property="Background" Value="#1E293B" /><Setter Property="Foreground" Value="#E2E8F0" /><Setter Property="Padding" Value="8" />
+    </Style>
+    <Style TargetType="DataGridCell">
+      <Setter Property="Foreground" Value="#E5E7EB" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" /></Trigger>
+      </Style.Triggers>
     </Style>
     <Style x:Key="Card" TargetType="Border">
       <Setter Property="Background" Value="{StaticResource PanelBrush}" /><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
