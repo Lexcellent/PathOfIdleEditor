@@ -197,7 +197,8 @@ internal static class GameEditorService
         }
         if (saveItem == null)
             throw new InvalidOperationException("游戏原生物品生成器拒绝了当前物品。");
-        var item = ItemData.Create(saveItem, EItemPosType.bag, 1)
+        // 背包物品没有“需求数量”；传 1 会让游戏把数量错误显示成“当前数量/1”。
+        var item = ItemData.Create(saveItem, EItemPosType.bag, 0)
             ?? throw new InvalidOperationException("游戏创建运行时物品数据失败。");
         if (!lord.lordBagData.addItemToBag(item))
             throw new InvalidOperationException("背包空间不足，物品没有加入存档。");
@@ -217,16 +218,19 @@ internal static class GameEditorService
         for (var i = 0; fields != null && i < fields.Count; i++)
         {
             var field = fields[i];
-            var save = field?.itemData?.saveItemData;
-            if (save == null || save.count <= 0 || save.type == EItemType.equip || !IsEditableItemType(save.type))
+            var itemData = field?.itemData;
+            var fieldSave = field?.saveItemFieldData;
+            var save = itemData?.saveItemData;
+            if (itemData == null || fieldSave == null || save == null || save.count <= 0 ||
+                save.type == EItemType.equip || !IsEditableItemType(save.type))
                 continue;
             snapshot.BagItems.Add(new InventoryItemEdit
             {
-                FieldIndex = field.saveItemFieldData.index,
+                FieldIndex = fieldSave.index,
                 Type = (int)save.type,
                 TypeName = GetItemTypeName(save.type),
                 Id = save.id,
-                Name = field.itemData.GetName() ?? $"物品 {save.id}",
+                Name = itemData.GetName() ?? $"物品 {save.id}",
                 Quality = save.quality,
                 Level = save.level,
                 Count = save.count
@@ -401,7 +405,8 @@ internal static class GameEditorService
             saveItem.affixList.Add(saveAffix);
         }
 
-        var item = ItemData.Create(saveItem, EItemPosType.bag, 1)
+        // 第三个参数是 needCount，普通背包实例必须为 0，否则图标会显示“数量/1”。
+        var item = ItemData.Create(saveItem, EItemPosType.bag, 0)
             ?? throw new InvalidOperationException("游戏创建运行时装备数据失败。");
         if (!lord.lordBagData.addItemToBag(item))
             throw new InvalidOperationException("领主背包已满，装备没有加入存档。");
