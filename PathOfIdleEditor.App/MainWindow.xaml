@@ -183,6 +183,11 @@
                                     <Setter Property="Background" Value="#493A16" />
                                     <Setter Property="BorderBrush" Value="#D97706" />
                                   </DataTrigger>
+                                  <DataTrigger Binding="{Binding Name}" Value="神话">
+                                    <!-- 沿用游戏的神话红色边框，并提高文字与深色背景的对比度。 -->
+                                    <Setter Property="Background" Value="#4A1D22" />
+                                    <Setter Property="BorderBrush" Value="#B32832" />
+                                  </DataTrigger>
                                 </Style.Triggers>
                               </Style>
                             </Border.Style>
@@ -196,6 +201,9 @@
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Name}" Value="稀有">
                                       <Setter Property="Foreground" Value="#FBBF24" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Name}" Value="神话">
+                                      <Setter Property="Foreground" Value="#F87171" />
                                     </DataTrigger>
                                   </Style.Triggers>
                                 </Style>

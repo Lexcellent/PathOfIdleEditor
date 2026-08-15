@@ -628,6 +628,9 @@ internal static class GameEditorService
 
         // 只按实际数量大于 0 的词条档位读取原生池；稀有专属装备不会混入普通词条。
         var poolByKey = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
+        // 传奇/神话专属词条由具体装备的 legendAffixArr 声明，不属于按部位查询的通用随机池。
+        // 直接读取该数组，避免依赖一次预览结果而漏掉当前装备绑定的神话候选。
+        var equipmentSpecialAffixes = BuildEquipmentSpecialAffixMap(template, edit.Quality);
         var allowedAffixKeys = new HashSet<(int Id, int Quality)>();
         foreach (var pair in poolByKey)
         {
@@ -647,6 +650,23 @@ internal static class GameEditorService
                 Name = GetAffixName(affix)
             });
             allowedAffixKeys.Add(pair.Key);
+        }
+        foreach (var pair in equipmentSpecialAffixes)
+        {
+            if (!affixTable.ContainsKey(pair.Key.Id) || !allowedAffixKeys.Add(pair.Key))
+                continue;
+            var affix = affixTable[pair.Key.Id];
+            var qualityName = affixQualityTable.ContainsKey(pair.Key.Quality)
+                ? affixQualityTable[pair.Key.Quality].name
+                : $"词条档位 {pair.Key.Quality}";
+            rules.AffixQualityNames[pair.Key.Quality] = qualityName;
+            rules.AllowedAffixes.Add(new AffixOption
+            {
+                Id = affix.id,
+                Quality = pair.Key.Quality,
+                QualityName = qualityName,
+                Name = GetAffixName(affix)
+            });
         }
         // 固定词条不一定属于随机池，仍应允许用户删除后重新添加。
         foreach (var generated in rules.GeneratedAffixes)
@@ -674,6 +694,7 @@ internal static class GameEditorService
             throw new InvalidOperationException($"当前品级最多允许 {rules.MaximumAffixCount} 条词条。");
 
         var poolByKey = BuildAffixPoolMap(template, edit.Level, rules.AffixQualityLimits.Keys);
+        var equipmentSpecialAffixes = BuildEquipmentSpecialAffixMap(template, edit.Quality);
         var affixTable = TAffix.create();
         var seen = new HashSet<int>();
         var requestedQualityCounts = new Dictionary<int, int>();
@@ -695,7 +716,9 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"词条 {requested.Id} 重复，游戏规则不允许重复添加同一词条。");
             var requestedKey = (requested.Id, requested.Quality);
             if (!affixTable.ContainsKey(requested.Id) ||
-                (!poolByKey.ContainsKey(requestedKey) && !nativeSpecialAffixKeys.Contains(requestedKey)))
+                (!poolByKey.ContainsKey(requestedKey) &&
+                 !equipmentSpecialAffixes.ContainsKey(requestedKey) &&
+                 !nativeSpecialAffixKeys.Contains(requestedKey)))
                 throw new InvalidOperationException($"词条 {requested.Id} 不在当前装备、品级和等级的游戏词条池中。");
             if (requested.Level < 1 || requested.Level > rules.MaximumAffixLevel)
                 throw new InvalidOperationException($"词条 {requested.Id} 的合法等级为 1-{rules.MaximumAffixLevel}。");
@@ -708,10 +731,15 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"档位 {requested.Quality} 最多允许 {qualityLimit} 条词条。");
             requestedQualityCounts[requested.Quality] = requestedQualityCount;
 
-            // 普通随机词条沿用游戏池的数值倍率；原生固定词条不在随机池时使用完整倍率。
-            var rate = poolByKey.TryGetValue(requestedKey, out var poolInfo) ? poolInfo.Rate : 1f;
+            // 装备专属词条使用 legendAffixArr 中的原生倍率；神话特殊词条沿用游戏的特殊随机方式。
+            var rate = poolByKey.TryGetValue(requestedKey, out var poolInfo)
+                ? poolInfo.Rate
+                : equipmentSpecialAffixes.TryGetValue(requestedKey, out var specialRate) ? specialRate : 1f;
+            var valueType = requested.Quality == (int)EItemQualityType.myth && affixTable[requested.Id].specialType == 1
+                ? EAffixValueType.specialRandom
+                : EAffixValueType.random;
             var saveAffix = SaveAffixData.Create(requested.Id, requested.Quality, requested.Level,
-                rate, EAffixValueType.random);
+                rate, valueType);
             if (saveAffix == null)
                 throw new InvalidOperationException($"游戏拒绝创建词条 {requested.Id}。");
             // 游戏原生创建路径没有针对外部 value 的范围校验；仅在用户填写时覆盖随机结果。
@@ -1242,6 +1270,31 @@ internal static class GameEditorService
             var pool = EquipSys.GetEquipAffixPool(template.id, template.part, affixQuality, equipmentLevel);
             for (var i = 0; pool != null && i < pool.Count; i++)
                 result[(pool[i].id, affixQuality)] = pool[i];
+        }
+        return result;
+    }
+
+    private static Dictionary<(int Id, int Quality), float> BuildEquipmentSpecialAffixMap(
+        TEquip template,
+        int equipmentQuality)
+    {
+        var result = new Dictionary<(int Id, int Quality), float>();
+        if (equipmentQuality != (int)EItemQualityType.legend &&
+            equipmentQuality != (int)EItemQualityType.myth)
+            return result;
+
+        var rawAffixArr = template.legendAffixArr;
+        if (rawAffixArr == null)
+            return result;
+        // IL2CPP 对二维数组只暴露通用对象，需要转换为游戏侧 Array 后按坐标读取。
+        var affixArr = rawAffixArr.Cast<Il2CppSystem.Array>();
+
+        // 每行第 1 列是词条 ID，第 2 列是百分制倍率；这与游戏追加专属词条的原生路径一致。
+        for (var index = 0; index < affixArr.GetLength(0); index++)
+        {
+            var affixId = affixArr.GetValue(index, 0).Unbox<int>();
+            if (affixId > 0)
+                result[(affixId, equipmentQuality)] = affixArr.GetValue(index, 1).Unbox<int>() / 100f;
         }
         return result;
     }
