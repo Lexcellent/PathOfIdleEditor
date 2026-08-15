@@ -59,9 +59,30 @@ public sealed class LordJobEdit
     public int RequiredLordLevel { get; set; }
     public int TotalAttributePoints { get; set; }
     public int Strength { get; set; }
+    public int StrengthMinimum { get; set; }
+    public int StrengthMaximum { get; set; }
     public int Dexterity { get; set; }
+    public int DexterityMinimum { get; set; }
+    public int DexterityMaximum { get; set; }
     public int Intelligence { get; set; }
+    public int IntelligenceMinimum { get; set; }
+    public int IntelligenceMaximum { get; set; }
+    public List<LordJobAttributeRule> AttributeRules { get; set; } = new();
     public List<LordTalentBonusEdit> TalentBonuses { get; set; } = new();
+    public string StrengthRange => $"{StrengthMinimum}-{StrengthMaximum}";
+    public string DexterityRange => $"{DexterityMinimum}-{DexterityMaximum}";
+    public string IntelligenceRange => $"{IntelligenceMinimum}-{IntelligenceMaximum}";
+}
+
+public sealed class LordJobAttributeRule
+{
+    public int Level { get; set; }
+    public int StrengthMinimum { get; set; }
+    public int StrengthMaximum { get; set; }
+    public int DexterityMinimum { get; set; }
+    public int DexterityMaximum { get; set; }
+    public int IntelligenceMinimum { get; set; }
+    public int IntelligenceMaximum { get; set; }
 }
 
 public sealed class LordTalentBonusEdit
@@ -205,6 +226,9 @@ public sealed class GrowthAttributeEdit
     public int Type { get; set; }
     public string Name { get; set; } = "";
     public float Value { get; set; }
+    public int MinimumValue { get; set; }
+    public int MaximumValue { get; set; }
+    public string ValueRange => $"{MinimumValue}-{MaximumValue}";
 }
 
 public sealed class TalentSlotEdit : INotifyPropertyChanged

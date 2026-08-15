@@ -65,7 +65,7 @@ internal static class GameEditorService
     {
         var lordLevels = TLordLevel.create();
         var jobLevels = TJobLevel.create();
-        var maximumLordLevel = GetMaximumTableKey(lordLevels, "领主等级");
+        var maximumLordLevel = GetMaximumTableKey(lordLevels, "崇拜者等级");
         var maximumJobLevel = GetMaximumTableKey(jobLevels, "魔偶等级");
         var result = new LordEdit
         {
@@ -105,6 +105,9 @@ internal static class GameEditorService
                 Dexterity = ReadLordJobAttribute(save, EAttrType.DEX),
                 Intelligence = ReadLordJobAttribute(save, EAttrType.INT)
             };
+            foreach (var rule in result.JobLevelRules)
+                edit.AttributeRules.Add(CreateLordJobAttributeRule(runtime, rule, jobLevels));
+            ApplyLordJobAttributeRule(edit, edit.AttributeRules.Find(item => item.Level == edit.Level));
             foreach (var talentPair in save.talentDic)
             {
                 if (!talentTable.ContainsKey(talentPair.Key))
@@ -132,9 +135,9 @@ internal static class GameEditorService
         var lordLevels = TLordLevel.create();
         var jobLevels = TJobLevel.create();
         if (!lordLevels.ContainsKey(edit.Level))
-            throw new InvalidOperationException($"领主等级 {edit.Level} 不存在于当前游戏等级表中。");
+            throw new InvalidOperationException($"崇拜者等级 {edit.Level} 不存在于当前游戏等级表中。");
 
-        // 先完整校验全部职业，防止其中一行失败后留下半完成存档。
+        // 只校验和写入实际发生变化的职业；单独修改崇拜者等级时不能重写六个魔偶。
         var validated = new List<(LordJobData Runtime, LordJobEdit Request, TJobLevel Rule)>();
         var seenJobs = new HashSet<int>();
         foreach (var request in edit.Jobs)
@@ -143,19 +146,33 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"职业 {request.JobId} 重复出现，请刷新后重试。");
             if (!lord.jobDic.ContainsKey(request.JobId))
                 throw new InvalidOperationException($"职业 {request.JobId} 已不存在，请刷新游戏数据。");
+            var runtime = lord.jobDic[request.JobId];
+            var currentSave = runtime.saveLordJobData;
+            var jobChanged = request.Level != currentSave.level ||
+                request.Strength != ReadLordJobAttribute(currentSave, EAttrType.STR) ||
+                request.Dexterity != ReadLordJobAttribute(currentSave, EAttrType.DEX) ||
+                request.Intelligence != ReadLordJobAttribute(currentSave, EAttrType.INT) ||
+                HasLordTalentChanges(currentSave, request.TalentBonuses);
+            if (!jobChanged)
+                continue;
             if (!jobLevels.ContainsKey(request.Level))
                 throw new InvalidOperationException($"“{request.JobName}”的魔偶等级 {request.Level} 不存在于当前游戏等级表中。");
             var requiredLordLevel = GetRequiredLordLevel(request.Level, jobLevels);
             if (edit.Level < requiredLordLevel)
-                throw new InvalidOperationException($"“{request.JobName}”升到 {request.Level} 级要求领主至少 {requiredLordLevel} 级。");
-            if (request.Strength < 0 || request.Dexterity < 0 || request.Intelligence < 0)
-                throw new InvalidOperationException($"“{request.JobName}”的属性加成不能小于 0。");
+                throw new InvalidOperationException($"“{request.JobName}”升到 {request.Level} 级要求崇拜者至少 {requiredLordLevel} 级。");
             var rule = jobLevels[request.Level];
+            var attributeRule = CreateLordJobAttributeRule(runtime, new LordJobLevelRule
+            {
+                Level = request.Level,
+                TotalAttributePoints = rule.totalAttr
+            }, jobLevels);
+            ValidateLordJobAttribute(request.JobName, "力量", request.Strength, attributeRule.StrengthMinimum, attributeRule.StrengthMaximum);
+            ValidateLordJobAttribute(request.JobName, "敏捷", request.Dexterity, attributeRule.DexterityMinimum, attributeRule.DexterityMaximum);
+            ValidateLordJobAttribute(request.JobName, "智力", request.Intelligence, attributeRule.IntelligenceMinimum, attributeRule.IntelligenceMaximum);
             var attributeTotal = request.Strength + request.Dexterity + request.Intelligence;
             if (attributeTotal != rule.totalAttr)
                 throw new InvalidOperationException($"“{request.JobName}”{request.Level} 级的力量、敏捷、智力总和必须为 {rule.totalAttr}，当前为 {attributeTotal}。");
 
-            var runtime = lord.jobDic[request.JobId];
             var currentTalentIds = new HashSet<int>();
             foreach (var pair in runtime.saveLordJobData.talentDic) currentTalentIds.Add(pair.Key);
             if (request.TalentBonuses.Count != currentTalentIds.Count)
@@ -170,9 +187,6 @@ internal static class GameEditorService
             }
             validated.Add((runtime, request, rule));
         }
-        if (validated.Count != lord.jobDic.Count)
-            throw new InvalidOperationException("职业魔偶列表不完整，请刷新游戏数据后重试。");
-
         lord.saveLordData.level = edit.Level;
         lord.saveLordData.exp = 0;
         lord.tLordLevelData = lordLevels[edit.Level];
@@ -197,7 +211,9 @@ internal static class GameEditorService
         return new EditorResponse
         {
             Success = true,
-            Message = $"已保存领主等级 {edit.Level} 及 {validated.Count} 个职业魔偶的数据。",
+            Message = validated.Count == 0
+                ? $"已保存崇拜者等级 {edit.Level}；六个职业魔偶未被改写。"
+                : $"已保存崇拜者等级 {edit.Level}，并更新 {validated.Count} 个职业魔偶。",
             Lord = CreateLordEdit(lord)
         };
     }
@@ -224,6 +240,65 @@ internal static class GameEditorService
     {
         var key = (int)type;
         return save.attrUpDic != null && save.attrUpDic.ContainsKey(key) ? save.attrUpDic[key] : 0;
+    }
+
+    private static bool HasLordTalentChanges(SaveLordJobData save, List<LordTalentBonusEdit> requested)
+    {
+        if (save.talentDic.Count != requested.Count)
+            return true;
+        foreach (var talent in requested)
+            if (!save.talentDic.ContainsKey(talent.TalentId) || save.talentDic[talent.TalentId] != talent.Level)
+                return true;
+        return false;
+    }
+
+    private static LordJobAttributeRule CreateLordJobAttributeRule(
+        LordJobData runtime,
+        LordJobLevelRule levelRule,
+        Il2CppSystem.Collections.Generic.Dictionary<int, TJobLevel> jobLevels)
+    {
+        var result = new LordJobAttributeRule { Level = levelRule.Level };
+        if (!jobLevels.ContainsKey(levelRule.Level))
+            return result;
+        var previousRule = runtime.tJobLevelData;
+        try
+        {
+            // 让游戏自己的 CreateAttrRangeList 按目标等级和职业表计算，避免复制易变的百分比规则。
+            runtime.tJobLevelData = jobLevels[levelRule.Level];
+            runtime.CreateAttrRangeList();
+            for (var index = 0; index < runtime.attrRangeList.Count; index++)
+            {
+                var range = runtime.attrRangeList[index];
+                if (range == null) continue;
+                if (range.type == EAttrType.STR) { result.StrengthMinimum = range.minValue; result.StrengthMaximum = range.maxValue; }
+                if (range.type == EAttrType.DEX) { result.DexterityMinimum = range.minValue; result.DexterityMaximum = range.maxValue; }
+                if (range.type == EAttrType.INT) { result.IntelligenceMinimum = range.minValue; result.IntelligenceMaximum = range.maxValue; }
+            }
+        }
+        finally
+        {
+            runtime.tJobLevelData = previousRule;
+            runtime.CreateAttrRangeList();
+        }
+        return result;
+    }
+
+    private static void ApplyLordJobAttributeRule(LordJobEdit edit, LordJobAttributeRule? rule)
+    {
+        if (rule == null)
+            return;
+        edit.StrengthMinimum = rule.StrengthMinimum;
+        edit.StrengthMaximum = rule.StrengthMaximum;
+        edit.DexterityMinimum = rule.DexterityMinimum;
+        edit.DexterityMaximum = rule.DexterityMaximum;
+        edit.IntelligenceMinimum = rule.IntelligenceMinimum;
+        edit.IntelligenceMaximum = rule.IntelligenceMaximum;
+    }
+
+    private static void ValidateLordJobAttribute(string jobName, string attributeName, int value, int minimum, int maximum)
+    {
+        if (value < minimum || value > maximum)
+            throw new InvalidOperationException($"“{jobName}”的{attributeName}加成合法范围为 {minimum}-{maximum}，当前为 {value}。");
     }
 
     internal static InventorySnapshot GetInventorySnapshot() => GetInventorySnapshot(GetLord());
@@ -659,6 +734,27 @@ internal static class GameEditorService
         if (edit.BlessingLevel != 0 && !blessingTable.ContainsKey(edit.BlessingLevel))
             throw new InvalidOperationException($"赐福等级 {edit.BlessingLevel} 不存在于当前游戏规则表中。");
 
+        var growthRules = CreateGrowthAttributeRules(hero);
+        var growthByType = new Dictionary<int, GrowthAttributeEdit>();
+        foreach (var growth in edit.GrowthAttributes)
+        {
+            if (!growthByType.TryAdd(growth.Type, growth))
+                throw new InvalidOperationException($"每级属性成长类型 {growth.Type} 重复出现，请刷新数据。");
+            var rule = growthRules.Find(item => item.Type == growth.Type)
+                ?? throw new InvalidOperationException($"每级属性成长类型 {growth.Type} 已不在当前游戏规则中。");
+            if (Math.Abs(growth.Value - MathF.Round(growth.Value)) > 0.0001f)
+                throw new InvalidOperationException($"“{growth.Name}”每级成长必须是整数。");
+            if (growth.Value < rule.MinimumValue || growth.Value > rule.MaximumValue)
+                throw new InvalidOperationException($"“{growth.Name}”每级成长合法范围为 {rule.MinimumValue}-{rule.MaximumValue}。");
+        }
+        if (growthByType.Count != growthRules.Count)
+            throw new InvalidOperationException("每级属性成长列表不完整，请刷新游戏数据后重试。");
+        var growthTotal = 0f;
+        foreach (var growth in edit.GrowthAttributes) growthTotal += growth.Value;
+        var requiredGrowthTotal = hero.tHeroQualityData?.baseAttrGrow ?? 0;
+        if (Math.Abs(growthTotal - requiredGrowthTotal) > 0.0001f)
+            throw new InvalidOperationException($"每级属性成长总和必须为 {requiredGrowthTotal}，当前为 {growthTotal:0.###}。");
+
         // 提交时重新构建技能树规则，不能信任桌面端连接时缓存的等级上限和候选项。
         var currentSlots = BuildTalentSlots(hero);
         var bySlot = new Dictionary<int, TalentSlotEdit>();
@@ -683,6 +779,8 @@ internal static class GameEditorService
         save.mainAttrDic[EAttrType.STR] = Math.Max(0, edit.Strength);
         save.mainAttrDic[EAttrType.DEX] = Math.Max(0, edit.Dexterity);
         save.mainAttrDic[EAttrType.INT] = Math.Max(0, edit.Intelligence);
+        foreach (var growth in edit.GrowthAttributes)
+            save.baseAttrUpDic[(EAttrType)growth.Type] = growth.Value;
         foreach (var requested in edit.TalentSlots)
         {
             var target = save.talentDic[requested.SlotId];
@@ -865,19 +963,39 @@ internal static class GameEditorService
             GrowthRerollPrice = GetGrowthRerollPrice(hero),
             TalentSlots = BuildTalentSlots(hero)
         };
-        foreach (var pair in save.baseAttrUpDic)
-            result.GrowthAttributes.Add(new GrowthAttributeEdit
-            {
-                Type = (int)pair.Key,
-                Name = GetAttributeName(pair.Key),
-                Value = pair.Value
-            });
-        result.GrowthAttributes.Sort((a, b) => a.Type.CompareTo(b.Type));
+        result.GrowthAttributes = CreateGrowthAttributeRules(hero);
         foreach (var pair in save.talentDic)
         {
             if (pair.Value?.isAlien == true) result.AlienSkillCount++;
             if (pair.Value?.isInspired == true) result.InspiredTalentCount++;
         }
+        return result;
+    }
+
+    private static List<GrowthAttributeEdit> CreateGrowthAttributeRules(HeroData hero)
+    {
+        var result = new List<GrowthAttributeEdit>();
+        var save = hero.saveHeroData;
+        var scope = hero.tHeroJobData?.baseScopeArr;
+        var total = hero.tHeroQualityData?.baseAttrGrow ?? 0;
+        if (scope == null)
+            return result;
+        var orderedTypes = new[] { EAttrType.STR, EAttrType.DEX, EAttrType.INT };
+        for (var row = 0; row < orderedTypes.Length; row++)
+        {
+            // 直接调用游戏新增的“可达整数范围”规则；它同时考虑单项比例和三项总和约束。
+            DataTool.GetConstrainedIntRangeInScopeArrPartition(scope, total, row, out var minimum, out var maximum);
+            var attrType = orderedTypes[row];
+            result.Add(new GrowthAttributeEdit
+            {
+                Type = (int)attrType,
+                Name = GetAttributeName(attrType),
+                Value = save.baseAttrUpDic.ContainsKey(attrType) ? save.baseAttrUpDic[attrType] : 0,
+                MinimumValue = minimum,
+                MaximumValue = maximum
+            });
+        }
+        result.Sort((a, b) => a.Type.CompareTo(b.Type));
         return result;
     }
 

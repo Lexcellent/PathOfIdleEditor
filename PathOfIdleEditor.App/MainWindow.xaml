@@ -289,7 +289,7 @@
         </Grid>
       </TabItem>
 
-      <TabItem Header="崇拜者 / 领主">
+      <TabItem Header="崇拜者">
         <Grid Margin="0,12,0,0">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /><RowDefinition Height="2*" /><RowDefinition Height="Auto" />
@@ -298,25 +298,28 @@
           <Border Style="{StaticResource Card}">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <Label Content="崇拜者 / 领主等级" />
+              <Label Content="崇拜者等级" />
               <TextBox Grid.Column="1" x:Name="LordLevelText" />
               <TextBlock Grid.Column="2" x:Name="LordLevelRuleText" Foreground="#94A3B8" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" />
             </Grid>
           </Border>
 
           <DataGrid Grid.Row="1" x:Name="LordJobsGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single"
-                    SelectionChanged="LordJobsGrid_SelectionChanged" CellEditEnding="LordJobsGrid_CellEditEnding" Margin="0,0,0,10"
+                    SelectionChanged="LordJobsGrid_SelectionChanged" Margin="0,0,0,10"
                     EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
               <DataGridTextColumn Header="职业 ID" Binding="{Binding JobId}" IsReadOnly="True" Width="80" />
               <DataGridTextColumn Header="职业魔偶" Binding="{Binding JobName}" IsReadOnly="True" Width="*" MinWidth="150" />
               <DataGridTextColumn Header="等级" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="85" />
               <DataGridTextColumn Header="等级上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="90" />
-              <DataGridTextColumn Header="领主要求" Binding="{Binding RequiredLordLevel}" IsReadOnly="True" Width="90" />
+              <DataGridTextColumn Header="崇拜者要求" Binding="{Binding RequiredLordLevel}" IsReadOnly="True" Width="105" />
               <DataGridTextColumn Header="属性总点" Binding="{Binding TotalAttributePoints}" IsReadOnly="True" Width="90" />
-              <DataGridTextColumn Header="力量加成" Binding="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-              <DataGridTextColumn Header="敏捷加成" Binding="{Binding Dexterity, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-              <DataGridTextColumn Header="智力加成" Binding="{Binding Intelligence, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+              <DataGridTextColumn Header="力量加成" Binding="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Width="95" />
+              <DataGridTextColumn Header="力量范围" Binding="{Binding StrengthRange}" IsReadOnly="True" Width="85" />
+              <DataGridTextColumn Header="敏捷加成" Binding="{Binding Dexterity, UpdateSourceTrigger=PropertyChanged}" Width="95" />
+              <DataGridTextColumn Header="敏捷范围" Binding="{Binding DexterityRange}" IsReadOnly="True" Width="85" />
+              <DataGridTextColumn Header="智力加成" Binding="{Binding Intelligence, UpdateSourceTrigger=PropertyChanged}" Width="95" />
+              <DataGridTextColumn Header="智力范围" Binding="{Binding IntelligenceRange}" IsReadOnly="True" Width="85" />
             </DataGrid.Columns>
           </DataGrid>
 
@@ -334,7 +337,7 @@
               <DataGridTextColumn Header="当前上限" Binding="{Binding MaximumLevel}" IsReadOnly="True" Width="110" />
             </DataGrid.Columns>
           </DataGrid>
-          <Button Grid.Row="4" Content="应用领主和全部职业魔偶修改" Click="ApplyLordButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
+          <Button Grid.Row="4" Content="应用崇拜者及已修改的职业魔偶" Click="ApplyLordButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
         </Grid>
       </TabItem>
 
@@ -358,7 +361,7 @@
           </Border>
 
           <Grid Grid.Row="1" Margin="4,0,4,8">
-            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="112" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Margin="0,0,0,10">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
               <StackPanel>
@@ -367,15 +370,24 @@
               </StackPanel>
               <Button Grid.Column="1" Content="使用血肉结晶重新随机" Click="RerollGrowthButton_Click" Padding="18,8" Margin="12,0,0,0" />
             </Grid>
-            <Grid Grid.Row="1">
+            <DataGrid Grid.Row="1" x:Name="GrowthGrid" AutoGenerateColumns="False" CanUserAddRows="False" Margin="0,0,0,10">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="属性" Binding="{Binding Name}" IsReadOnly="True" Width="*" />
+                <DataGridTextColumn Header="合法范围" Binding="{Binding ValueRange}" IsReadOnly="True" Width="150" />
+                <DataGridTextColumn Header="每级成长（可编辑）" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="190" />
+              </DataGrid.Columns>
+            </DataGrid>
+            <Grid Grid.Row="2">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
               <StackPanel>
                 <TextBlock Text="技能树、异化技能与启迪天赋" FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="ExtraTalentRuleText" Foreground="#94A3B8" Margin="0,4,0,0" TextWrapping="Wrap" />
               </StackPanel>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
-                <Button Content="同步异化技能" Click="SyncAlienSkillsButton_Click" Padding="14,8" Margin="0,0,8,0" />
-                <Button Content="启迪一个天赋" Click="InspireHeroButton_Click" Padding="14,8" />
+                <Button Content="按游戏规则同步异化技能" Click="SyncAlienSkillsButton_Click" Padding="14,8" Margin="0,0,8,0"
+                        ToolTip="按当前角色容量清理无效或超额异化技能，并由游戏随机补齐可用异化技能。" />
+                <Button Content="消耗血肉结晶随机启迪天赋" Click="InspireHeroButton_Click" Padding="14,8"
+                        ToolTip="调用神殿原生流程，校验设施、数量上限和材料后，随机新增一个其他职业天赋。" />
               </StackPanel>
             </Grid>
           </Grid>
@@ -397,7 +409,7 @@
               <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="130" />
             </DataGrid.Columns>
           </DataGrid>
-          <Button Grid.Row="3" Content="应用角色、技能和技能树修改" Click="ApplyHeroButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
+          <Button Grid.Row="3" Content="应用角色、每级属性成长和技能树修改" Click="ApplyHeroButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
         </Grid>
       </TabItem>
     </TabControl>

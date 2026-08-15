@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -117,24 +116,11 @@ public partial class MainWindow : Window
             LordTalentRuleText.Text = "请选择一个职业魔偶。";
             return;
         }
+        SyncLordJobRule(job);
         LordTalentsGrid.ItemsSource = job.TalentBonuses;
-        LordTalentRuleText.Text = $"{job.JobName}：魔偶 {job.Level} 级要求领主至少 {job.RequiredLordLevel} 级；三项属性总和必须为 {job.TotalAttributePoints}。";
-    }
-
-    private void LordJobsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
-    {
-        // 等单元格把新等级写回对象后，再刷新该等级对应的原生规则显示。
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (e.Row.Item is LordJobEdit job)
-            {
-                SyncLordJobRule(job);
-                LordJobsGrid.Items.Refresh();
-                LordTalentsGrid.Items.Refresh();
-                if (ReferenceEquals(LordJobsGrid.SelectedItem, job))
-                    LordJobsGrid_SelectionChanged(LordJobsGrid, new SelectionChangedEventArgs(Selector.SelectionChangedEvent, new List<object>(), new List<object>()));
-            }
-        }, DispatcherPriority.Background);
+        LordTalentRuleText.Text = $"{job.JobName}：魔偶 {job.Level} 级要求崇拜者至少 {job.RequiredLordLevel} 级；" +
+            $"力量 {job.StrengthMinimum}-{job.StrengthMaximum}，敏捷 {job.DexterityMinimum}-{job.DexterityMaximum}，" +
+            $"智力 {job.IntelligenceMinimum}-{job.IntelligenceMaximum}，三项总和必须为 {job.TotalAttributePoints}。";
     }
 
     private void SyncLordJobRule(LordJobEdit job)
@@ -144,6 +130,16 @@ public partial class MainWindow : Window
             return;
         job.RequiredLordLevel = rule.RequiredLordLevel;
         job.TotalAttributePoints = rule.TotalAttributePoints;
+        var attributeRule = job.AttributeRules.FirstOrDefault(item => item.Level == job.Level);
+        if (attributeRule != null)
+        {
+            job.StrengthMinimum = attributeRule.StrengthMinimum;
+            job.StrengthMaximum = attributeRule.StrengthMaximum;
+            job.DexterityMinimum = attributeRule.DexterityMinimum;
+            job.DexterityMaximum = attributeRule.DexterityMaximum;
+            job.IntelligenceMinimum = attributeRule.IntelligenceMinimum;
+            job.IntelligenceMaximum = attributeRule.IntelligenceMaximum;
+        }
         foreach (var talent in job.TalentBonuses)
         {
             talent.MaximumLevel = rule.MaximumTalentBonusLevel;
@@ -159,27 +155,15 @@ public partial class MainWindow : Window
             CommitGrid(LordJobsGrid);
             CommitGrid(LordTalentsGrid);
             var lord = _snapshot?.Lord ?? throw new InvalidOperationException("请先连接并读取游戏数据。");
-            var level = ParseInt(LordLevelText.Text, "领主等级");
+            var level = ParseInt(LordLevelText.Text, "崇拜者等级");
             if (level < 1 || level > lord.MaximumLevel)
-                throw new InvalidOperationException($"当前游戏表允许的领主等级为 1-{lord.MaximumLevel}。");
+                throw new InvalidOperationException($"当前游戏表允许的崇拜者等级为 1-{lord.MaximumLevel}。");
             lord.Level = level;
-            foreach (var job in lord.Jobs)
-            {
-                SyncLordJobRule(job);
-                if (lord.JobLevelRules.All(item => item.Level != job.Level))
-                    throw new InvalidOperationException($"“{job.JobName}”的魔偶等级 {job.Level} 不存在于当前游戏表中。");
-                if (level < job.RequiredLordLevel)
-                    throw new InvalidOperationException($"“{job.JobName}”{job.Level} 级要求领主至少 {job.RequiredLordLevel} 级。");
-                var total = job.Strength + job.Dexterity + job.Intelligence;
-                if (job.Strength < 0 || job.Dexterity < 0 || job.Intelligence < 0 || total != job.TotalAttributePoints)
-                    throw new InvalidOperationException($"“{job.JobName}”的三项属性必须非负且总和为 {job.TotalAttributePoints}，当前为 {total}。");
-                foreach (var talent in job.TalentBonuses)
-                    if (talent.Level < 1 || talent.Level > talent.MaximumLevel)
-                        throw new InvalidOperationException($"“{talent.Name}”的等级加成合法范围为 1-{talent.MaximumLevel}。");
-            }
+            // 桌面端不强制六个职业一起合法；桥接只对实际修改的魔偶按最新游戏规则校验。
+            foreach (var job in lord.Jobs) SyncLordJobRule(job);
             var response = await BridgeClient.SendAsync(new EditorRequest { Action = "updateLord", Lord = lord });
             EnsureSuccess(response);
-            BindLord(response.Lord ?? throw new InvalidDataException("桥接没有返回更新后的领主数据。"));
+            BindLord(response.Lord ?? throw new InvalidDataException("桥接没有返回更新后的崇拜者数据。"));
             return response.Message;
         });
     }
@@ -531,9 +515,10 @@ public partial class MainWindow : Window
         IntelligenceText.Text = hero.Intelligence.ToString(CultureInfo.InvariantCulture);
         RemainingPointsText.Text = hero.RemainingSkillPoints.ToString(CultureInfo.InvariantCulture);
         BlessingLevelCombo.SelectedItem = hero.BlessingLevel;
+        GrowthGrid.ItemsSource = hero.GrowthAttributes;
         TalentsGrid.ItemsSource = hero.TalentSlots;
-        var growth = string.Join("，", hero.GrowthAttributes.Select(item => $"{item.Name} +{item.Value.ToString("0.###", CultureInfo.InvariantCulture)}"));
-        GrowthRuleText.Text = $"当前成长：{(string.IsNullOrWhiteSpace(growth) ? "游戏未提供成长项" : growth)}；本次原生重随价格 {hero.GrowthRerollPrice} 个血肉结晶。";
+        var growthTotal = hero.GrowthAttributes.Sum(item => item.Value);
+        GrowthRuleText.Text = $"可直接编辑；单项范围与总成长读取自当前职业、品级的游戏规则。当前总和 {growthTotal:0.###}；原生重随价格 {hero.GrowthRerollPrice} 个血肉结晶。";
         ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（游戏当前规则动态计算）；启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents}（神殿属性动态计算）。";
         SetStatus($"已选择“{hero.Name}”；角色合法等级为 1-{hero.MaximumLevel}。", true);
     }
@@ -588,6 +573,7 @@ public partial class MainWindow : Window
     {
         await RunAsync(async () =>
         {
+            CommitGrid(GrowthGrid);
             CommitGrid(TalentsGrid);
             var hero = HeroCombo.SelectedItem as HeroEdit
                 ?? throw new InvalidOperationException("请选择角色。");
@@ -598,6 +584,13 @@ public partial class MainWindow : Window
             {
                 if (slot.Level < slot.MinimumLevel || slot.Level > slot.MaximumLevel)
                     throw new InvalidOperationException($"位置 {slot.SlotId}“{slot.Name}”的合法等级为 {slot.MinimumLevel}-{slot.MaximumLevel}。");
+            }
+            foreach (var growth in hero.GrowthAttributes)
+            {
+                if (Math.Abs(growth.Value - MathF.Round(growth.Value)) > 0.0001f)
+                    throw new InvalidOperationException($"“{growth.Name}”每级成长必须是整数。");
+                if (growth.Value < growth.MinimumValue || growth.Value > growth.MaximumValue)
+                    throw new InvalidOperationException($"“{growth.Name}”每级成长合法范围为 {growth.MinimumValue}-{growth.MaximumValue}。");
             }
             hero.Name = HeroNameText.Text;
             hero.Level = level;

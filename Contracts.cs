@@ -59,9 +59,27 @@ internal sealed class LordJobEdit
     public int RequiredLordLevel { get; set; }
     public int TotalAttributePoints { get; set; }
     public int Strength { get; set; }
+    public int StrengthMinimum { get; set; }
+    public int StrengthMaximum { get; set; }
     public int Dexterity { get; set; }
+    public int DexterityMinimum { get; set; }
+    public int DexterityMaximum { get; set; }
     public int Intelligence { get; set; }
+    public int IntelligenceMinimum { get; set; }
+    public int IntelligenceMaximum { get; set; }
+    public List<LordJobAttributeRule> AttributeRules { get; set; } = new();
     public List<LordTalentBonusEdit> TalentBonuses { get; set; } = new();
+}
+
+internal sealed class LordJobAttributeRule
+{
+    public int Level { get; set; }
+    public int StrengthMinimum { get; set; }
+    public int StrengthMaximum { get; set; }
+    public int DexterityMinimum { get; set; }
+    public int DexterityMaximum { get; set; }
+    public int IntelligenceMinimum { get; set; }
+    public int IntelligenceMaximum { get; set; }
 }
 
 internal sealed class LordTalentBonusEdit
@@ -193,6 +211,8 @@ internal sealed class GrowthAttributeEdit
     public int Type { get; set; }
     public string Name { get; set; } = "";
     public float Value { get; set; }
+    public int MinimumValue { get; set; }
+    public int MaximumValue { get; set; }
 }
 
 internal sealed class TalentSlotEdit
