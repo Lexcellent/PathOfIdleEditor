@@ -1321,12 +1321,14 @@ internal static class GameEditorService
             }
             else if (isTalentSkill)
             {
-                // 普通主动槽允许选择所有职业中与当前槽位类型、层级兼容的主动技能。
+                // 天赋技能池由 TTalentPos 的 type + index 对应；floor 是天赋层级，不能作为池键。
+                // 同一池中的条件分支（例如法师的辉煌光环/风暴灌注）因此会出现在同一个
+                // 下拉框中，槽位天然保证只能二选一。
                 foreach (var candidatePair in talentTable)
                 {
                     var candidate = candidatePair.Value;
                     if (candidate == null || candidate.skillId <= 0 ||
-                        candidate.type != currentTable.type || candidate.floor != currentTable.floor)
+                        candidate.type != currentTable.type || candidate.index != currentTable.index)
                         continue;
                     slot.SkillOptions.Add(new SkillOption
                     {
