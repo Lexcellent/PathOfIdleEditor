@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace PathOfIdleEditor.App;
 
 public sealed class EditorRequest
@@ -87,18 +90,72 @@ public sealed class HeroEdit
     public string Display => $"{Name}  ·  ID {UniqueId}";
 }
 
-public sealed class TalentSlotEdit
+public sealed class TalentSlotEdit : INotifyPropertyChanged
 {
+    private int _talentId;
+    private int _skillId;
+    private string _name = "";
+    private int _level;
+    private int _minimumLevel;
+    private int _maximumLevel;
+
     public int SlotId { get; set; }
-    public int TalentId { get; set; }
-    public int SkillId { get; set; }
+    public int TalentId
+    {
+        get => _talentId;
+        set => SetField(ref _talentId, value);
+    }
+    public int SkillId
+    {
+        get => _skillId;
+        set => SetField(ref _skillId, value);
+    }
     public string Kind { get; set; } = "";
-    public string Name { get; set; } = "";
-    public int Level { get; set; }
-    public int MinimumLevel { get; set; }
-    public int MaximumLevel { get; set; }
+    public string Name
+    {
+        get => _name;
+        set => SetField(ref _name, value);
+    }
+    public int Level
+    {
+        get => _level;
+        set => SetField(ref _level, value);
+    }
+    public int MinimumLevel
+    {
+        get => _minimumLevel;
+        set
+        {
+            if (SetField(ref _minimumLevel, value))
+                OnPropertyChanged(nameof(LevelRange));
+        }
+    }
+    public int MaximumLevel
+    {
+        get => _maximumLevel;
+        set
+        {
+            if (SetField(ref _maximumLevel, value))
+                OnPropertyChanged(nameof(LevelRange));
+        }
+    }
     public List<SkillOption> SkillOptions { get; set; } = new();
     public string LevelRange => $"{MinimumLevel} - {MaximumLevel}";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    // 仅通知当前技能行发生变化，避免刷新整张 DataGrid 后递归创建 ComboBox。
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+            return false;
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 public sealed class SkillOption

@@ -228,6 +228,11 @@ public partial class MainWindow : Window
     {
         if (sender is not ComboBox combo || combo.DataContext is not TalentSlotEdit slot || combo.SelectedItem is not SkillOption option)
             return;
+
+        // ComboBox 首次创建或被虚拟化回收时也会触发 SelectionChanged；这些不是用户操作。
+        if (e.RemovedItems.Count == 0 || (!combo.IsKeyboardFocusWithin && !combo.IsDropDownOpen))
+            return;
+
         slot.TalentId = option.TalentId;
         slot.SkillId = option.SkillId;
         slot.Name = option.Name;
@@ -235,7 +240,6 @@ public partial class MainWindow : Window
         slot.MaximumLevel = option.MaximumLevel;
         if (slot.Level > slot.MaximumLevel)
             slot.Level = slot.MaximumLevel;
-        TalentsGrid.Items.Refresh();
         SetStatus($"位置 {slot.SlotId} 已选择“{option.Name}”，合法等级上限 {option.MaximumLevel}。", true);
     }
 

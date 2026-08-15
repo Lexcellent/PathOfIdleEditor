@@ -94,7 +94,8 @@
                   <Button Content="添加词条" Click="AddAffixButton_Click" />
                   <Button Content="删除选中" Click="RemoveAffixButton_Click" Background="#B91C1C" />
                 </StackPanel>
-                <DataGrid Grid.Row="2" Grid.ColumnSpan="2" x:Name="AffixesGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="240">
+                <DataGrid Grid.Row="2" Grid.ColumnSpan="2" x:Name="AffixesGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="240"
+                          EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="词条 ID" Binding="{Binding Id}" IsReadOnly="True" Width="90" />
                     <DataGridTextColumn Header="词条描述" Binding="{Binding Name}" IsReadOnly="True" Width="*" />
@@ -130,7 +131,8 @@
             <TextBlock Text="技能树与技能" FontSize="18" FontWeight="SemiBold" />
             <TextBlock Text="技能行可从游戏返回的合法候选中更换；等级范围由当前角色运行时规则计算。" Foreground="#94A3B8" Margin="0,4,0,0" />
           </StackPanel>
-          <DataGrid Grid.Row="2" x:Name="TalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="300">
+          <DataGrid Grid.Row="2" x:Name="TalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="300"
+                    EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling">
             <DataGrid.Columns>
               <DataGridTextColumn Header="位置" Binding="{Binding SlotId}" IsReadOnly="True" Width="75" />
               <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="100" />
