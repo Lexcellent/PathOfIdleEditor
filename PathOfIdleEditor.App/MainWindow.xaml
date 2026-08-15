@@ -22,11 +22,37 @@
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="Padding" Value="8,5" /><Setter Property="Margin" Value="4" />
     </Style>
     <Style TargetType="ComboBoxItem">
-      <Setter Property="Background" Value="#F8FAFC" /><Setter Property="Foreground" Value="#0F172A" /><Setter Property="Padding" Value="8,5" />
-      <Style.Triggers>
-        <Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#2563EB" /><Setter Property="Foreground" Value="White" /></Trigger>
-        <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" /></Trigger>
-      </Style.Triggers>
+      <!-- 自定义选项模板，避免 Windows 系统主题用浅色高亮背景覆盖应用配色。 -->
+      <Setter Property="Background" Value="#0F172A" /><Setter Property="Foreground" Value="#E5E7EB" />
+      <Setter Property="Padding" Value="10,7" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center" SnapsToDevicePixels="True" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="#1E40AF" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="#1D4ED8" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="#075985" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="ItemBorder" Property="Background" Value="#111827" />
+                <Setter Property="Foreground" Value="#64748B" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="TabItem">
       <Setter Property="Foreground" Value="#CBD5E1" /><Setter Property="Padding" Value="18,9" /><Setter Property="Margin" Value="0,0,4,0" />
