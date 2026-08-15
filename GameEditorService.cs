@@ -9,6 +9,8 @@ internal static class GameEditorService
     {
         var lord = GetLord();
         var snapshot = new EditorSnapshot();
+
+        // 每次连接都重新读取游戏表，游戏更新后无需同步维护桌面端的等级和品级常量。
         var qualityTable = TEquipQuality.create();
         foreach (var pair in qualityTable)
             snapshot.EquipmentQualities.Add(new RuleOption { Value = pair.Key, Name = pair.Value?.name ?? $"品级 {pair.Key}" });
@@ -21,6 +23,8 @@ internal static class GameEditorService
 
         var partTable = TEquipPart.create();
         var templates = TEquip.create();
+
+        // 同类装备会共享游戏随机池参数；缓存池结果可显著减少主线程中的原生调用次数。
         var qualityPoolCache = new Dictionary<string, HashSet<int>>();
         foreach (var pair in templates)
         {
@@ -52,6 +56,8 @@ internal static class GameEditorService
     {
         var template = RequireEquipmentRequest(edit);
         var levelData = TEquipLevel.create()[edit.Level];
+
+        // 创建未入包的预览装备，让游戏原生生成器决定该组合的默认词条和数量规则。
         var preview = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
             ?? throw new InvalidOperationException("游戏原生装备生成器拒绝了当前组合。");
         var rules = new EquipmentRules
@@ -60,6 +66,7 @@ internal static class GameEditorService
             MaximumAffixLevel = Math.Max(1, levelData.affixMaxLevel)
         };
 
+        // 词条候选直接来自游戏按装备、部位、品级和等级筛选后的原生池。
         var pool = EquipSys.GetEquipAffixPool(template.id, template.part, edit.Quality, edit.Level);
         var affixTable = TAffix.create();
         for (var i = 0; pool != null && i < pool.Count; i++)
@@ -121,11 +128,13 @@ internal static class GameEditorService
         var affixTable = TAffix.create();
         var seen = new HashSet<int>();
 
+        // 先用原生流程建立完整装备结构，再只替换用户明确编辑过的词条列表。
         var saveItem = SaveItemData.CreateEquip(edit.TemplateId, edit.Quality, edit.Level)
             ?? throw new InvalidOperationException("游戏原生装备生成器创建失败。");
         saveItem.affixList.Clear();
         foreach (var requested in edit.Affixes)
         {
+            // 即使桌面端已经过滤，桥接层仍需再次校验，防止旧客户端或手工请求绕过规则。
             if (!seen.Add(requested.Id))
                 throw new InvalidOperationException($"词条 {requested.Id} 重复，游戏规则不允许重复添加同一词条。");
             if (!affixTable.ContainsKey(requested.Id) || !ContainsAffix(rules.AllowedAffixes, requested.Id))
@@ -134,6 +143,7 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"词条 {requested.Id} 的合法等级为 1-{rules.MaximumAffixLevel}。");
 
             var tableAffix = affixTable[requested.Id];
+            // 普通随机词条沿用游戏池的数值倍率；原生固定词条不在随机池时使用完整倍率。
             var rate = poolById.TryGetValue(requested.Id, out var poolInfo) ? poolInfo.Rate : 1f;
             var saveAffix = SaveAffixData.Create(requested.Id, tableAffix.quality, requested.Level,
                 rate, EAffixValueType.random);
@@ -161,6 +171,7 @@ internal static class GameEditorService
         if (edit.Level < 1 || edit.Level > maxHeroLevel)
             throw new InvalidOperationException($"当前游戏规则允许的角色等级为 1-{maxHeroLevel}。");
 
+        // 提交时重新构建技能树规则，不能信任桌面端连接时缓存的等级上限和候选项。
         var currentSlots = BuildTalentSlots(hero);
         var bySlot = new Dictionary<int, TalentSlotEdit>();
         foreach (var slot in currentSlots) bySlot[slot.SlotId] = slot;
@@ -195,6 +206,7 @@ internal static class GameEditorService
             target.SetLevel(requested.Level);
         }
 
+        // 重新初始化运行时角色，使属性派生值、装备效果和技能对象与存档字段保持一致。
         hero.Init();
         save.talentRemainPoint = Math.Max(0, edit.RemainingSkillPoints);
         hero.SetName(save.name);
@@ -223,6 +235,7 @@ internal static class GameEditorService
         var save = hero.saveHeroData;
         var runtime = hero.heroTalentData.talentDic;
         var talentTable = TTalent.create();
+        // 由游戏自身返回该角色可使用的技能天赋池，再按当前位置类型和层级筛选。
         var legalSkillPool = save.GetSkillTalentList();
 
         foreach (var pair in save.talentDic)
@@ -293,6 +306,7 @@ internal static class GameEditorService
     {
         try
         {
+            // 临时 TalentData 不写入存档，仅用于调用游戏的动态等级上限计算。
             var previewSave = SaveTalentData.Create(candidateId, 0, current.posId, current.isFixed);
             var preview = TalentData.Create(previewSave, hero);
             return Math.Max(0, preview.GetTalentLevelCap());
@@ -305,6 +319,7 @@ internal static class GameEditorService
 
     private static TEquip RequireEquipmentRequest(EquipmentEdit edit)
     {
+        // 所有基础 ID 先通过当前游戏表验证，再调用原生 API，避免无效 ID 触发 IL2CPP 异常。
         var templates = TEquip.create();
         if (!templates.ContainsKey(edit.TemplateId))
             throw new InvalidOperationException($"装备模板 {edit.TemplateId} 不存在于当前游戏表中。");
@@ -332,6 +347,7 @@ internal static class GameEditorService
         {
             try
             {
+                // CollectRandomEquipIds 是游戏生成装备时使用的筛选入口，比写死品级映射更耐更新。
                 var cacheKey = $"{quality.Value}:{template.part}:{template.minType}:{template.specialGet}:{template.boxLevel}";
                 HashSet<int>? cachedIds = null;
                 if (poolCache == null || !poolCache.TryGetValue(cacheKey, out cachedIds))
@@ -406,6 +422,7 @@ internal static class GameEditorService
         save.mainAttrDic != null && save.mainAttrDic.ContainsKey(type) ? save.mainAttrDic[type] : 0;
 
     private static void SaveNow() =>
+        // 只在完整操作成功后调用原生保存，校验失败时不会产生半完成存档。
         (Game.dataMgr?.nowSeasonData?.nativeSeasonData
          ?? throw new InvalidOperationException("当前游戏存档不可用。"))
         .SaveData();

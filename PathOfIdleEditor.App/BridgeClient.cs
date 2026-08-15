@@ -7,11 +7,13 @@ namespace PathOfIdleEditor.App;
 
 internal static class BridgeClient
 {
+    // 桌面端不直接接触游戏文件，只通过同机命名管道调用桥接 Mod。
     private const string PipeName = "PathOfIdleEditor.v1";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     internal static async Task<EditorResponse> SendAsync(EditorRequest request, CancellationToken cancellationToken = default)
     {
+        // 请求级短连接便于游戏重启后重新连接，也无需在 UI 中维护长连接状态机。
         await using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         await pipe.ConnectAsync(3000, cancellationToken);
         using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, true);

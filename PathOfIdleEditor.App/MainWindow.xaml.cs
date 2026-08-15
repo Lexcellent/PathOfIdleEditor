@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     {
         await RunAsync(async () =>
         {
+            // 快照包含游戏当前版本的装备表、等级表、品级规则和角色技能树规则。
             var response = await BridgeClient.SendAsync(new EditorRequest { Action = "snapshot" });
             EnsureSuccess(response);
             _snapshot = response.Snapshot ?? throw new InvalidDataException("桥接没有返回游戏数据。");
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         if (_equipmentView == null)
             return;
         var keyword = EquipmentSearchText.Text.Trim();
+        // 使用 WPF 集合视图过滤，不复制装备集合，搜索时可以保留原始规则数据。
         _equipmentView.Filter = item =>
         {
             if (item is not EquipmentTemplate equipment || string.IsNullOrWhiteSpace(keyword))
@@ -102,6 +104,7 @@ public partial class MainWindow : Window
             EquipmentLevelCombo.SelectedItem is not int level)
             return;
 
+        // 连续切换下拉框时只接受最后一次响应，避免较慢的旧响应覆盖当前选择。
         var requestVersion = ++_rulesRequestVersion;
         AffixRuleText.Text = "正在读取当前游戏的词条池和数量限制……";
         try
@@ -185,6 +188,7 @@ public partial class MainWindow : Window
                 ? selectedLevel : throw new InvalidOperationException("请选择合法装备等级。");
             if (_equipmentRules == null)
                 throw new InvalidOperationException("尚未读取当前组合的游戏规则。");
+            // UI 先给出即时反馈；桥接层收到请求后仍会按最新游戏规则再次验证。
             foreach (var affix in _affixes)
             {
                 if (affix.Level < 1 || affix.Level > _equipmentRules.MaximumAffixLevel)
@@ -227,6 +231,7 @@ public partial class MainWindow : Window
         slot.TalentId = option.TalentId;
         slot.SkillId = option.SkillId;
         slot.Name = option.Name;
+        // 不同技能的上限可能不同，切换技能时同步收紧当前编辑值。
         slot.MaximumLevel = option.MaximumLevel;
         if (slot.Level > slot.MaximumLevel)
             slot.Level = slot.MaximumLevel;

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 namespace PathOfIdleEditor;
 
+// 管道协议只传输普通 CLR 对象，不能直接序列化 IL2CPP 游戏对象。
 internal sealed class EditorRequest
 {
     public string Action { get; set; } = "";
@@ -51,6 +52,7 @@ internal sealed class EquipmentEdit
 
 internal sealed class EquipmentRules
 {
+    // 这些限制由当前游戏表和原生方法实时计算，桌面端不维护规则副本。
     public int MaximumAffixCount { get; set; }
     public int MaximumAffixLevel { get; set; }
     public List<AffixOption> AllowedAffixes { get; set; } = new();
@@ -87,6 +89,7 @@ internal sealed class HeroEdit
 
 internal sealed class TalentSlotEdit
 {
+    // SlotId 是存档字典键，TalentId 是该位置当前选择的天赋/技能定义 ID。
     public int SlotId { get; set; }
     public int TalentId { get; set; }
     public int SkillId { get; set; }
