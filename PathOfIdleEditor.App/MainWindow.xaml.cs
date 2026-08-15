@@ -471,6 +471,24 @@ public partial class MainWindow : Window
         }, DispatcherPriority.Loaded);
     }
 
+    private void ResizeTalentColumnsToContent()
+    {
+        // 分组和虚拟化会让模板列首次只按空单元格测量；内容生成后重新计算实际宽度。
+        Dispatcher.BeginInvoke(() =>
+        {
+            TalentsGrid.UpdateLayout();
+            foreach (var column in TalentsGrid.Columns)
+            {
+                column.Width = new DataGridLength(column.ActualWidth, DataGridLengthUnitType.Pixel);
+                column.Width = column is DataGridTemplateColumn &&
+                    column.Header?.ToString()?.StartsWith("技能 / 天赋", StringComparison.Ordinal) == true
+                    ? new DataGridLength(1, DataGridLengthUnitType.Star)
+                    : DataGridLength.Auto;
+            }
+            TalentsGrid.UpdateLayout();
+        }, DispatcherPriority.Loaded);
+    }
+
     private void RemoveAffixButton_Click(object sender, RoutedEventArgs e)
     {
         if (AffixesGrid.SelectedItem is not AffixEdit affix)
@@ -543,6 +561,7 @@ public partial class MainWindow : Window
         talentView.GroupDescriptions.Clear();
         talentView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TalentSlotEdit.Category)));
         TalentsGrid.ItemsSource = talentView;
+        ResizeTalentColumnsToContent();
         var growthTotal = hero.GrowthAttributes.Sum(item => item.Value);
         GrowthRuleText.Text = $"可直接编辑且不消耗血肉结晶；单项范围与总成长读取自当前职业、品级的游戏规则。当前总和 {growthTotal:0.###}。";
         ExtraTalentRuleText.Text = $"异化技能 {hero.AlienSkillCount}/{hero.MaximumAlienSkills}（增加时不消耗道具）；已有启迪天赋 {hero.InspiredTalentCount}/{hero.MaximumInspiredTalents} 可直接编辑等级。新增启迪必须消耗血肉结晶，因此不提供新增入口。";

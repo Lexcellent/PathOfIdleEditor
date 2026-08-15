@@ -420,8 +420,8 @@
               </GroupStyle>
             </DataGrid.GroupStyle>
             <DataGrid.Columns>
-              <DataGridTextColumn Header="位置" Binding="{Binding SlotId}" IsReadOnly="True" Width="75" />
-              <DataGridTemplateColumn Header="来源标识" Width="120">
+              <DataGridTextColumn Header="位置" Binding="{Binding SlotId}" IsReadOnly="True" Width="Auto" MinWidth="85" />
+              <DataGridTemplateColumn Header="来源标识" Width="Auto" MinWidth="125">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <Border CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
@@ -452,7 +452,7 @@
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="技能 / 天赋（天赋技能可更换）" Width="*">
+              <DataGridTemplateColumn Header="技能 / 天赋（天赋技能可更换）" Width="*" MinWidth="420">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate>
                     <ComboBox ItemsSource="{Binding SkillOptions}" DisplayMemberPath="Display" SelectedValuePath="TalentId"
@@ -462,8 +462,8 @@
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTextColumn Header="合法范围" Binding="{Binding LevelRange}" IsReadOnly="True" Width="105" />
-              <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+              <DataGridTextColumn Header="合法范围" Binding="{Binding LevelRange}" IsReadOnly="True" Width="Auto" MinWidth="115" />
+              <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="Auto" MinWidth="140" />
             </DataGrid.Columns>
           </DataGrid>
           <Button Grid.Row="3" Content="应用角色、每级属性成长和技能树修改" Click="ApplyHeroButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
