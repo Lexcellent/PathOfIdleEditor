@@ -135,7 +135,12 @@ public partial class MainWindow : Window
             AffixQualityCombo.SelectedIndex = affixCategories.Count > 0 ? 0 : -1;
             _affixes.Clear();
             foreach (var affix in _equipmentRules.GeneratedAffixes)
-                _affixes.Add(affix);
+            {
+                // 自动生成的初始词条也默认使用当前装备规则允许的最高等级。
+                var editableAffix = CloneAffix(affix);
+                editableAffix.Level = _equipmentRules.MaximumAffixLevel;
+                _affixes.Add(editableAffix);
+            }
             var qualityLimits = string.Join("，", _equipmentRules.AffixQualityLimits
                 .OrderBy(pair => pair.Key)
                 .Select(pair => $"{(_equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"档位 {pair.Key}")}最多 {pair.Value} 条"));
@@ -207,7 +212,8 @@ public partial class MainWindow : Window
             Quality = option.Quality,
             QualityName = option.QualityName,
             Name = option.Name,
-            Level = 1
+            // 新增词条默认填入游戏当前规则允许的最高等级，用户仍可在表格中下调。
+            Level = _equipmentRules.MaximumAffixLevel
         });
         SetStatus($"已添加词条 {option.Id}，提交前仍会由游戏规则复核。", true);
     }
