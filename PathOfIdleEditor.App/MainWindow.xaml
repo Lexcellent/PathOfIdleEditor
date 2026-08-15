@@ -1,0 +1,155 @@
+<Window x:Class="PathOfIdleEditor.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Path of Idle 独立编辑器" Height="860" Width="1080"
+        MinHeight="720" MinWidth="900" WindowStartupLocation="CenterScreen"
+        Background="#0B1120" Foreground="#E5E7EB" FontFamily="Microsoft YaHei UI">
+  <Window.Resources>
+    <SolidColorBrush x:Key="PanelBrush" Color="#111827" />
+    <SolidColorBrush x:Key="Panel2Brush" Color="#172033" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#2B3851" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#38BDF8" />
+    <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#E5E7EB" /></Style>
+    <Style TargetType="Label"><Setter Property="Foreground" Value="#CBD5E1" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Background" Value="#0F172A" /><Setter Property="Foreground" Value="#F8FAFC" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="Padding" Value="9,6" /><Setter Property="Margin" Value="4" />
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Background" Value="#0F172A" /><Setter Property="Foreground" Value="#F8FAFC" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="Padding" Value="8,5" /><Setter Property="Margin" Value="4" />
+    </Style>
+    <Style TargetType="ComboBoxItem"><Setter Property="Background" Value="#F8FAFC" /><Setter Property="Foreground" Value="#111827" /><Setter Property="Padding" Value="8,5" /></Style>
+    <Style TargetType="TabItem"><Setter Property="Foreground" Value="#E5E7EB" /><Setter Property="Background" Value="#172033" /><Setter Property="Padding" Value="18,8" /></Style>
+    <Style TargetType="Button">
+      <Setter Property="Background" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="16,8" /><Setter Property="Margin" Value="4" /><Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style TargetType="DataGrid">
+      <Setter Property="Background" Value="#0F172A" /><Setter Property="Foreground" Value="#E5E7EB" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="GridLinesVisibility" Value="Horizontal" />
+      <Setter Property="HorizontalGridLinesBrush" Value="#25324A" /><Setter Property="RowBackground" Value="#0F172A" /><Setter Property="AlternatingRowBackground" Value="#141E31" />
+    </Style>
+    <Style TargetType="DataGridColumnHeader">
+      <Setter Property="Background" Value="#1E293B" /><Setter Property="Foreground" Value="#E2E8F0" /><Setter Property="Padding" Value="8" />
+    </Style>
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="{StaticResource PanelBrush}" /><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="16" /><Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+  </Window.Resources>
+
+  <DockPanel Margin="16">
+    <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Background="#14213A">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="Path of Idle 独立编辑器" FontSize="24" FontWeight="SemiBold" />
+          <TextBlock Text="规则实时读取自当前游戏；修改通过无界面 BepInEx 桥接写入存档。" Foreground="#94A3B8" Margin="0,5,0,0" />
+        </StackPanel>
+        <Button Grid.Column="1" x:Name="RefreshButton" Content="连接 / 刷新游戏数据" Click="RefreshButton_Click" MinWidth="170" />
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Background="#111827" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,10,0,0">
+      <StackPanel Orientation="Horizontal">
+        <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="#64748B" Margin="0,0,9,0" />
+        <TextBlock x:Name="StatusText" Text="请启动游戏并进入一个游戏存档，然后连接。" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <TabControl Background="Transparent" BorderThickness="0">
+      <TabItem Header="装备生成器">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+          <StackPanel>
+            <Border Style="{StaticResource Card}">
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="210" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.ColumnSpan="2" Text="基础规则" FontSize="18" FontWeight="SemiBold" Margin="4,0,4,10" />
+                <Label Grid.Row="1" Content="搜索装备名称或 ID" />
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="EquipmentSearchText" TextChanged="EquipmentSearchText_TextChanged" />
+                <Label Grid.Row="2" Content="装备模板" />
+                <ComboBox Grid.Row="2" Grid.Column="1" x:Name="EquipmentTemplateCombo" DisplayMemberPath="Display" SelectionChanged="EquipmentSelectionChanged" />
+                <Label Grid.Row="3" Content="该装备支持的品级" />
+                <ComboBox Grid.Row="3" Grid.Column="1" x:Name="QualityCombo" DisplayMemberPath="Display" SelectionChanged="EquipmentSelectionChanged" />
+                <Label Grid.Row="4" Content="合法装备等级" />
+                <ComboBox Grid.Row="4" Grid.Column="1" x:Name="EquipmentLevelCombo" SelectionChanged="EquipmentSelectionChanged" IsTextSearchEnabled="True" />
+              </Grid>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+              <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Text="词条编辑" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock x:Name="AffixRuleText" Text="选择装备、品级和等级后读取游戏词条池。" Foreground="#94A3B8" Margin="0,4,0,10" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                  <ComboBox x:Name="AllowedAffixCombo" DisplayMemberPath="Display" MinWidth="370" />
+                  <Button Content="添加词条" Click="AddAffixButton_Click" />
+                  <Button Content="删除选中" Click="RemoveAffixButton_Click" Background="#B91C1C" />
+                </StackPanel>
+                <DataGrid Grid.Row="2" Grid.ColumnSpan="2" x:Name="AffixesGrid" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="240">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="词条 ID" Binding="{Binding Id}" IsReadOnly="True" Width="90" />
+                    <DataGridTextColumn Header="词条描述" Binding="{Binding Name}" IsReadOnly="True" Width="*" />
+                    <DataGridTextColumn Header="档位" Binding="{Binding Quality}" IsReadOnly="True" Width="80" />
+                    <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+                  </DataGrid.Columns>
+                </DataGrid>
+              </Grid>
+            </Border>
+            <Button Content="生成装备并加入背包" Click="GenerateEquipmentButton_Click" Height="46" FontSize="16" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="角色编辑器">
+        <Grid Margin="0,12,0,0">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <Border Style="{StaticResource Card}">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <Label Content="角色" /><ComboBox Grid.Column="1" Grid.ColumnSpan="3" x:Name="HeroCombo" DisplayMemberPath="Display" SelectionChanged="HeroCombo_SelectionChanged" />
+              <Label Grid.Row="1" Content="名称" /><TextBox Grid.Row="1" Grid.Column="1" x:Name="HeroNameText" />
+              <Label Grid.Row="1" Grid.Column="2" Content="等级（读取游戏上限）" /><TextBox Grid.Row="1" Grid.Column="3" x:Name="HeroLevelText" />
+              <Label Grid.Row="2" Content="力量（STR）" /><TextBox Grid.Row="2" Grid.Column="1" x:Name="StrengthText" />
+              <Label Grid.Row="2" Grid.Column="2" Content="敏捷（DEX）" /><TextBox Grid.Row="2" Grid.Column="3" x:Name="DexterityText" />
+              <Label Grid.Row="3" Content="智力（INT）" /><TextBox Grid.Row="3" Grid.Column="1" x:Name="IntelligenceText" />
+              <Label Grid.Row="3" Grid.Column="2" Content="剩余技能点" /><TextBox Grid.Row="3" Grid.Column="3" x:Name="RemainingPointsText" />
+            </Grid>
+          </Border>
+
+          <StackPanel Grid.Row="1" Margin="4,0,4,8">
+            <TextBlock Text="技能树与技能" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="技能行可从游戏返回的合法候选中更换；等级范围由当前角色运行时规则计算。" Foreground="#94A3B8" Margin="0,4,0,0" />
+          </StackPanel>
+          <DataGrid Grid.Row="2" x:Name="TalentsGrid" AutoGenerateColumns="False" CanUserAddRows="False" MinHeight="300">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="位置" Binding="{Binding SlotId}" IsReadOnly="True" Width="75" />
+              <DataGridTextColumn Header="类型" Binding="{Binding Kind}" IsReadOnly="True" Width="100" />
+              <DataGridTemplateColumn Header="技能 / 天赋（技能可更换）" Width="*">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <ComboBox ItemsSource="{Binding SkillOptions}" DisplayMemberPath="Display" SelectedValuePath="TalentId"
+                              SelectedValue="{Binding TalentId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              SelectionChanged="SkillOption_SelectionChanged" />
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="合法范围" Binding="{Binding LevelRange}" IsReadOnly="True" Width="105" />
+              <DataGridTextColumn Header="等级（可编辑）" Binding="{Binding Level, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <Button Grid.Row="3" Content="应用角色、技能和技能树修改" Click="ApplyHeroButton_Click" Height="46" FontSize="16" Margin="4,12,4,4" />
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

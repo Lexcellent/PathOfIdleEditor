@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>PathOfIdleEditorBridge</AssemblyName>
+    <Product>Path of Idle Editor Bridge</Product>
+    <Version>1.0.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RestoreAdditionalProjectSources>
+      https://api.nuget.org/v3/index.json;
+      https://nuget.bepinex.dev/v3/index.json;
+      https://nuget.samboy.dev/v3/index.json
+    </RestoreAdditionalProjectSources>
+    <RootNamespace>PathOfIdleEditor</RootNamespace>
+    <PathOfIdleGameDir Condition="'$(PathOfIdleGameDir)' == ''">D:\app\Steam\steamapps\common\PathOfIdle</PathOfIdleGameDir>
+  </PropertyGroup>
+
+  <Target Name="ValidatePathOfIdleGameDir" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(PathOfIdleGameDir)\BepInEx\interop\Assembly-CSharp.dll')"
+           Text="PathOfIdleGameDir does not contain BepInEx interop assemblies. Pass -p:PathOfIdleGameDir=&quot;path\to\PathOfIdle&quot;." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="PathOfIdleEditor.App\**\*" />
+    <EmbeddedResource Remove="PathOfIdleEditor.App\**\*" />
+    <None Remove="PathOfIdleEditor.App\**\*" />
+    <Page Remove="PathOfIdleEditor.App\**\*" />
+    <ApplicationDefinition Remove="PathOfIdleEditor.App\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(PathOfIdleGameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$(PathOfIdleGameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(PathOfIdleGameDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
