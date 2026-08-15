@@ -981,6 +981,7 @@ internal static class GameEditorService
         var currentSlots = BuildTalentSlots(hero);
         var bySlot = new Dictionary<int, TalentSlotEdit>();
         foreach (var slot in currentSlots) bySlot[slot.SlotId] = slot;
+        var selectedTalentSkillIds = new HashSet<int>();
         var extraRekeys = new Dictionary<int, int>();
         var requestedExtraKeys = new HashSet<int>();
         foreach (var requested in edit.TalentSlots)
@@ -996,6 +997,8 @@ internal static class GameEditorService
                 throw new InvalidOperationException($"技能树位置 {requested.SlotId} 是基础技能，游戏规则不允许修改。");
             if (requested.Level < rule.MinimumLevel || requested.Level > selected.MaximumLevel)
                 throw new InvalidOperationException($"“{selected.Name}”的合法等级为 {rule.MinimumLevel}-{selected.MaximumLevel}。");
+            if (rule.Category == "天赋技能" && !selectedTalentSkillIds.Add(selected.SkillId))
+                throw new InvalidOperationException($"天赋技能“{selected.Name}”已经被其他天赋技能位置选择。");
             if (rule.IsAlien || rule.IsInspired)
             {
                 if (!requestedExtraKeys.Add(requested.TalentId))
@@ -1174,6 +1177,9 @@ internal static class GameEditorService
         var runtime = hero.heroTalentData.talentDic;
         var talentTable = TTalent.create();
         var jobTable = THeroJob.create();
+        // 同一角色中候选天赋的等级上限与候选本身有关，不随普通技能槽位变化。
+        // 所有职业技能进入每个下拉框后候选数量较大，缓存可避免反复创建临时 TalentData。
+        var candidateCapCache = new Dictionary<int, int>();
         var otherJobSkillPool = save.GetOtherJobSkillPool();
         var otherJobMasteryPool = hero.heroTalentData.GetOtherJobMasteryPool();
         var skillPositions = new HashSet<int>();
@@ -1238,7 +1244,7 @@ internal static class GameEditorService
                         SkillId = candidate.skillId,
                         Name = GetTalentDisplayName(candidate),
                         JobName = GetHeroJobName(jobTable, candidate.jobId),
-                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
+                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap, candidateCapCache)
                     });
                 }
             }
@@ -1256,20 +1262,18 @@ internal static class GameEditorService
                         SkillId = candidate.skillId,
                         Name = GetTalentDisplayName(candidate),
                         JobName = GetHeroJobName(jobTable, candidate.jobId),
-                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
+                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap, candidateCapCache)
                     });
                 }
             }
             else if (isTalentSkill)
             {
-                // 天赋技能池由 TTalentPos 的 type + index 对应；floor 是天赋层级，不能作为池键。
-                // 同一池中的条件分支（例如法师的辉煌光环/风暴灌注）因此会出现在同一个
-                // 下拉框中，槽位天然保证只能二选一。
+                // 游戏原生 GetSkillList 使用 TTalent.type == 1 识别天赋技能。这里不再按当前
+                // 槽位的 index 缩小候选池，让每个可编辑槽位都能选择所有职业的有效天赋技能。
                 foreach (var candidatePair in talentTable)
                 {
                     var candidate = candidatePair.Value;
-                    if (candidate == null || candidate.skillId <= 0 ||
-                        candidate.type != currentTable.type || candidate.index != currentTable.index)
+                    if (candidate == null || candidate.skillId <= 0 || candidate.type != 1)
                         continue;
                     slot.SkillOptions.Add(new SkillOption
                     {
@@ -1277,7 +1281,7 @@ internal static class GameEditorService
                         SkillId = candidate.skillId,
                         Name = GetTalentDisplayName(candidate),
                         JobName = GetHeroJobName(jobTable, candidate.jobId),
-                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap)
+                        MaximumLevel = GetCandidateTalentCap(hero, saved, candidate.id, cap, candidateCapCache)
                     });
                 }
             }
@@ -1318,14 +1322,23 @@ internal static class GameEditorService
         return result;
     }
 
-    private static int GetCandidateTalentCap(HeroData hero, SaveTalentData current, int candidateId, int fallback)
+    private static int GetCandidateTalentCap(
+        HeroData hero,
+        SaveTalentData current,
+        int candidateId,
+        int fallback,
+        Dictionary<int, int> cache)
     {
+        if (cache.TryGetValue(candidateId, out var cached))
+            return cached;
         try
         {
             // 临时 TalentData 不写入存档，仅用于调用游戏的动态等级上限计算。
             var previewSave = SaveTalentData.Create(candidateId, 0, current.posId, current.isFixed);
             var preview = TalentData.Create(previewSave, hero);
-            return Math.Max(0, preview.GetTalentLevelCap());
+            var result = Math.Max(0, preview.GetTalentLevelCap());
+            cache[candidateId] = result;
+            return result;
         }
         catch
         {

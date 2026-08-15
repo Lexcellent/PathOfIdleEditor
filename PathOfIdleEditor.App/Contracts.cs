@@ -285,6 +285,7 @@ public sealed class TalentSlotEdit : INotifyPropertyChanged
     private int _level;
     private int _minimumLevel;
     private int _maximumLevel;
+    private List<SkillOption> _skillOptions = new();
 
     public int SlotId { get; set; }
     public bool IsAlien { get; set; }
@@ -331,7 +332,11 @@ public sealed class TalentSlotEdit : INotifyPropertyChanged
                 OnPropertyChanged(nameof(LevelRange));
         }
     }
-    public List<SkillOption> SkillOptions { get; set; } = new();
+    public List<SkillOption> SkillOptions
+    {
+        get => _skillOptions;
+        set => SetField(ref _skillOptions, value);
+    }
     public string LevelRange => $"{MinimumLevel} - {MaximumLevel}";
 
     public event PropertyChangedEventHandler? PropertyChanged;

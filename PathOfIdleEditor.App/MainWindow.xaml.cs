@@ -19,6 +19,9 @@ public partial class MainWindow : Window
     private ICollectionView? _equipmentView;
     private ICollectionView? _inventoryTemplateView;
     private ICollectionView? _inventoryView;
+    private readonly Dictionary<int, List<SkillOption>> _talentSkillOptionCatalogs = new();
+    private HeroEdit? _talentSkillCatalogHero;
+    private bool _refreshingTalentSkillOptions;
     private bool _loadingControls;
     private int _rulesRequestVersion;
 
@@ -559,6 +562,7 @@ public partial class MainWindow : Window
         BlessingLevelCombo.SelectedItem = hero.BlessingLevel;
         HeroQualityCombo.SelectedItem = _snapshot?.HeroQualities.FirstOrDefault(item => item.Value == hero.Quality);
         GrowthGrid.ItemsSource = hero.GrowthAttributes;
+        PrepareTalentSkillOptions(hero);
         var talentView = CollectionViewSource.GetDefaultView(hero.TalentSlots);
         talentView.GroupDescriptions.Clear();
         talentView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TalentSlotEdit.Category)));
@@ -604,6 +608,8 @@ public partial class MainWindow : Window
 
     private void SkillOption_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_refreshingTalentSkillOptions)
+            return;
         if (sender is not ComboBox combo || combo.DataContext is not TalentSlotEdit slot || combo.SelectedItem is not SkillOption option)
             return;
 
@@ -618,7 +624,49 @@ public partial class MainWindow : Window
         slot.MaximumLevel = option.MaximumLevel;
         if (slot.Level > slot.MaximumLevel)
             slot.Level = slot.MaximumLevel;
+        if (HeroCombo.SelectedItem is HeroEdit hero && slot.Category == "天赋技能")
+            RefreshTalentSkillOptions(hero);
         SetStatus($"位置 {slot.SlotId} 已选择“{option.Name}”，合法等级上限 {option.MaximumLevel}。", true);
+    }
+
+    private void PrepareTalentSkillOptions(HeroEdit hero)
+    {
+        // 新快照或切换角色时保存每个天赋技能槽的完整候选池；后续联动过滤不能覆盖原始列表。
+        if (!ReferenceEquals(_talentSkillCatalogHero, hero))
+        {
+            _talentSkillCatalogHero = hero;
+            _talentSkillOptionCatalogs.Clear();
+            foreach (var slot in hero.TalentSlots)
+                if (slot.Category == "天赋技能")
+                    _talentSkillOptionCatalogs[slot.SlotId] = slot.SkillOptions.ToList();
+        }
+        RefreshTalentSkillOptions(hero);
+    }
+
+    private void RefreshTalentSkillOptions(HeroEdit hero)
+    {
+        var selectedSkillIds = hero.TalentSlots
+            .Where(item => item.Category == "天赋技能")
+            .Select(item => item.SkillId)
+            .ToHashSet();
+        _refreshingTalentSkillOptions = true;
+        try
+        {
+            foreach (var slot in hero.TalentSlots)
+            {
+                if (slot.Category != "天赋技能" ||
+                    !_talentSkillOptionCatalogs.TryGetValue(slot.SlotId, out var catalog))
+                    continue;
+                // 当前槽位保留自己的已选项；其他槽位选中的技能不会重复出现在此下拉框。
+                slot.SkillOptions = catalog
+                    .Where(option => option.TalentId == slot.TalentId || !selectedSkillIds.Contains(option.SkillId))
+                    .ToList();
+            }
+        }
+        finally
+        {
+            _refreshingTalentSkillOptions = false;
+        }
     }
 
     private async void ApplyHeroButton_Click(object sender, RoutedEventArgs e)
