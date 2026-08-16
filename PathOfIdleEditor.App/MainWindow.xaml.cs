@@ -377,7 +377,7 @@ public partial class MainWindow : Window
                 .OrderBy(pair => pair.Key)
                 .Select(pair => $"{(_equipmentRules.AffixQualityNames.TryGetValue(pair.Key, out var name) ? name : $"档位 {pair.Key}")}最多 {pair.Value} 条"));
             var maximumForgeLevel = _equipmentRules.AllowedForgeLevels.Max();
-            AffixRuleText.Text = $"游戏规则：锻造等级 0-{maximumForgeLevel}；总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条；数值范围随词条等级联动，留空时由游戏随机。";
+            AffixRuleText.Text = $"游戏规则：锻造等级 0-{maximumForgeLevel}；总计最多 {_equipmentRules.MaximumAffixCount} 条；{qualityLimits}；词条等级 1-{_equipmentRules.MaximumAffixLevel}；合法候选 {_equipmentRules.AllowedAffixes.Count} 条；数值范围随词条等级联动但仅供参考，不限制输入，留空时由游戏随机。";
             SetStatus("已根据当前装备、品级和等级刷新游戏规则。", true);
         }
         catch (Exception exception)
@@ -527,10 +527,6 @@ public partial class MainWindow : Window
             {
                 if (affix.Level < 1 || affix.Level > _equipmentRules.MaximumAffixLevel)
                     throw new InvalidOperationException($"词条 {affix.Id} 的合法等级为 1-{_equipmentRules.MaximumAffixLevel}。");
-                var valueRange = affix.ValueRanges.FirstOrDefault(item => item.Level == affix.Level);
-                if (affix.Value.HasValue && valueRange != null &&
-                    (affix.Value.Value < valueRange.Minimum || affix.Value.Value > valueRange.Maximum))
-                    throw new InvalidOperationException($"词条 {affix.Id} 在 {affix.Level} 级时的数值合法范围为 {valueRange.Minimum}-{valueRange.Maximum}。");
             }
             var response = await BridgeClient.SendAsync(new EditorRequest
             {

@@ -898,25 +898,6 @@ internal static class GameEditorService
             var rate = poolByKey.TryGetValue(requestedKey, out var poolInfo)
                 ? poolInfo.Rate
                 : equipmentSpecialAffixes.TryGetValue(requestedKey, out var specialRate) ? specialRate : 1f;
-            if (requested.Value.HasValue)
-            {
-                AffixValueRange? valueRange = null;
-                foreach (var option in rules.AllowedAffixes)
-                {
-                    if (option.Id != requested.Id || option.Quality != requested.Quality)
-                        continue;
-                    foreach (var candidateRange in option.ValueRanges)
-                        if (candidateRange.Level == requested.Level)
-                        {
-                            valueRange = candidateRange;
-                            break;
-                        }
-                    break;
-                }
-                if (valueRange != null &&
-                    (requested.Value.Value < valueRange.Minimum || requested.Value.Value > valueRange.Maximum))
-                    throw new InvalidOperationException($"词条 {requested.Id} 在 {requested.Level} 级时的数值合法范围为 {valueRange.Minimum}-{valueRange.Maximum}。");
-            }
             var valueType = requested.Quality == (int)EItemQualityType.myth && affixTable[requested.Id].specialType == 1
                 ? EAffixValueType.specialRandom
                 : EAffixValueType.random;
@@ -924,7 +905,8 @@ internal static class GameEditorService
                 rate, valueType);
             if (saveAffix == null)
                 throw new InvalidOperationException($"游戏拒绝创建词条 {requested.Id}。");
-            // 游戏原生创建路径没有针对外部 value 的范围校验；仅在用户填写时覆盖随机结果。
+            // 游戏原生创建路径没有针对外部 value 的范围校验。表中推导出的范围仅供界面参考，
+            // 用户填写任意整数时都直接覆盖随机结果；留空则保留游戏生成的值。
             if (requested.Value.HasValue)
                 saveAffix.value = requested.Value.Value;
             saveItem.affixList.Add(saveAffix);
