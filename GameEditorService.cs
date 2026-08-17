@@ -1028,9 +1028,13 @@ internal static class GameEditorService
         // 重新初始化运行时角色，使属性派生值、装备效果和技能对象与存档字段保持一致。
         hero.Init();
 
-        // 赐福通过游戏原生升降流程修改，使赐福属性和赐福技能点同步更新。
-        if (targetBlessingLevel < save.blessLevel && !hero.ClearAllBlessLevel())
-            throw new InvalidOperationException("游戏拒绝清除当前角色的赐福等级。");
+        // 新版本已移除 ClearAllBlessLevel，也没有提供可反向扣除随机赐福属性的原生方法。
+        // 降级时保留界面中明确提交的三项主属性，只更新赐福等级并重建运行时数据。
+        if (targetBlessingLevel < save.blessLevel)
+        {
+            save.blessLevel = targetBlessingLevel;
+            hero.Init();
+        }
         while (save.blessLevel < targetBlessingLevel)
         {
             var previousLevel = save.blessLevel;
@@ -1038,6 +1042,8 @@ internal static class GameEditorService
             if (save.blessLevel <= previousLevel)
                 throw new InvalidOperationException($"游戏无法把赐福等级提升到 {targetBlessingLevel}。");
         }
+        // 游戏更新后由该方法根据赐福里程碑重算赐福天赋点。
+        hero.heroTalentData.RecalcBlessTalentPointByMilestones();
         save.talentRemainPoint = Math.Max(0, edit.RemainingSkillPoints);
         hero.SetName(save.name);
         Game.eventMgr?.sendEvent(EEvent.talentChange, hero);
